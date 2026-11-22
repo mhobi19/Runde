@@ -9,7 +9,7 @@
   var BUCKET = 'drink-photos';
   var REFRESH_MS = 30000;
   var PHOTO_TTL_MS = 50 * 60 * 1000;
-  var TILES = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+  var TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
   var DRINK_COLS = 'id,user_id,category,name,abv,volume_ml,alcohol_g,points,points_raw,party_day,photo_path,lat,lng,created_at,profiles(display_name),drink_flags(user_id)';
 
   var sb = null;
@@ -386,7 +386,7 @@
     mapFitted = false;
     map = window.L.map(el, { zoomControl: false, worldCopyJump: true }).setView([51.1, 10.4], 5);
     window.L.control.zoom({ position: 'topright' }).addTo(map);
-    window.L.tileLayer(TILES, { maxZoom: 19, subdomains: 'abcd', attribution: '&copy; OpenStreetMap &copy; CARTO' }).addTo(map);
+    window.L.tileLayer(TILES, { maxZoom: 19, attribution: '&copy; OpenStreetMap-Mitwirkende' }).addTo(map);
     markerLayer = window.L.layerGroup().addTo(map);
     updateMarkers();
     setTimeout(function () { if (map) map.invalidateSize(); }, 120);
