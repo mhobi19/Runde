@@ -10,7 +10,7 @@
   var REFRESH_MS = 30000;
   var PHOTO_TTL_MS = 50 * 60 * 1000;
   var TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-  var DRINK_COLS = 'id,user_id,category,name,abv,volume_ml,alcohol_g,points,points_raw,party_day,photo_path,lat,lng,created_at,profiles(display_name),drink_flags(user_id)';
+  var DRINK_COLS = 'id,user_id,category,name,abv,volume_ml,alcohol_g,points,points_raw,party_day,photo_path,lat,lng,created_at,profiles!drinks_user_id_fkey(display_name),drink_flags(user_id)';
 
   var sb = null;
   var state = {
@@ -238,7 +238,7 @@
     if (mapFrom) mapQuery = mapQuery.gte('party_day', mapFrom);
     try {
       var res = await Promise.all([
-        sb.from('group_members').select('user_id,role,profiles(display_name)').eq('group_id', gid),
+        sb.from('group_members').select('user_id,role,profiles!group_members_user_id_fkey(display_name)').eq('group_id', gid),
         sb.from('drinks').select(DRINK_COLS).eq('group_id', gid).order('created_at', { ascending: false }).limit(150),
         sb.rpc('leaderboard', { p_group: gid, p_from: Logic.periodStart(state.period, now) }),
         mapQuery,
