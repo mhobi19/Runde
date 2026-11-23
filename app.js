@@ -239,7 +239,7 @@
     try {
       var res = await Promise.all([
         sb.from('group_members').select('user_id,role,profiles!group_members_user_id_fkey(display_name)').eq('group_id', gid),
-        sb.from('drinks').select(DRINK_COLS).eq('group_id', gid).order('created_at', { ascending: false }).limit(150),
+        sb.from('drinks').select(DRINK_COLS).eq('group_id', gid).order('created_at', { ascending: false }).limit(60),
         sb.rpc('leaderboard', { p_group: gid, p_from: Logic.periodStart(state.period, now) }),
         mapQuery,
         sb.from('drinks').select('points,alcohol_g,party_day,user_id').eq('group_id', gid).eq('user_id', state.uid).eq('party_day', day)
@@ -329,6 +329,7 @@
     if (state.tab === 'feed') html = Views.feedView(state);
     else if (state.tab === 'group') html = Views.groupView(state);
     else html = Views.rankView(state);
+    view.classList.toggle('anim', !soft);
     view.innerHTML = html;
     view.scrollTop = soft ? scroll : 0;
     hydratePhotos(view);
@@ -403,16 +404,19 @@
     Logic.clusterDrinks(visible).forEach(function (c) {
       var latest = c.drinks[0];
       var nm = latest.profiles && latest.profiles.display_name ? latest.profiles.display_name : '?';
-      var html = '<div class="mk" style="--c:' + Logic.colorFor(latest.user_id) + '">' + Logic.esc(Logic.initial(nm)) +
+      var html = '<div class="mk" style="--c:' + Logic.colorFor(latest.user_id) + '">' +
+        '<img data-path="' + Logic.esc(latest.photo_path) + '" alt="">' +
+        '<span class="mk-i">' + Logic.esc(Logic.initial(nm)) + '</span>' +
         (c.drinks.length > 1 ? '<i>' + c.drinks.length + '</i>' : '') + '</div>';
       var marker = window.L.marker([c.lat, c.lng], {
-        icon: window.L.divIcon({ className: '', html: html, iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -18] })
+        icon: window.L.divIcon({ className: '', html: html, iconSize: [48, 48], iconAnchor: [24, 24], popupAnchor: [0, -26] })
       });
-      marker.bindPopup(Views.mapPopup(c, state), { maxWidth: 280 });
+      marker.bindPopup(Views.mapPopup(c, state), { maxWidth: 300 });
       marker.on('popupopen', function (e) { hydratePhotos(e.popup.getElement()); });
       marker.addTo(markerLayer);
       points.push([c.lat, c.lng]);
     });
+    if (mapEl) hydratePhotos(mapEl);
     if (!mapFitted && points.length) {
       map.fitBounds(points, { padding: [50, 50], maxZoom: 16 });
       mapFitted = true;
@@ -423,7 +427,7 @@
   function logCtx() {
     return {
       usage: state.today,
-      limits: { points: Number(state.group.daily_limit), grams: Number(state.group.alcohol_limit_g) }
+      limits: { points: state.group.daily_limit == null ? null : Number(state.group.daily_limit), grams: state.group.alcohol_limit_g == null ? null : Number(state.group.alcohol_limit_g) }
     };
   }
 
@@ -688,6 +692,37 @@
     return r;
   }
 
+  async function removePhotos(gid, uid) {
+    var paths = [];
+    for (var from = 0; ; from += 1000) {
+      var q = sb.from('drinks').select('photo_path').eq('group_id', gid);
+      if (uid) q = q.eq('user_id', uid);
+      var r = await q.range(from, from + 999);
+      if (r.error) { logError('Fotos suchen', r.error); toast(humanError(r.error), 'bad'); return false; }
+      (r.data || []).forEach(function (d) { if (d.photo_path) paths.push(d.photo_path); });
+      if ((r.data || []).length < 1000) break;
+    }
+    for (var i = 0; i < paths.length; i += 100) {
+      var x = await sb.storage.from(BUCKET).remove(paths.slice(i, i + 100));
+      if (x.error) { logError('Fotos löschen', x.error); toast('Fotos konnten nicht gelöscht werden. Nichts geändert.', 'bad'); return false; }
+    }
+    return true;
+  }
+
+  async function afterGroupGone(msg) {
+    try { localStorage.removeItem('runde_group'); } catch (e) { logError('localStorage entfernen', e); }
+    state.members = []; state.drinks = []; state.board = []; state.mapDrinks = [];
+    state.today = { points: 0, grams: 0, count: 0 };
+    state.group = null;
+    await loadGroups();
+    state.group = state.groups[0] || null;
+    state.tab = state.group ? 'rank' : 'group';
+    renderGroupSelect();
+    render(false);
+    await refreshGroupData(false);
+    toast(msg, 'good');
+  }
+
   function copyText(text, okMsg) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(function () { toast(okMsg); }, function (e) {
@@ -737,6 +772,43 @@
         sb.storage.from(BUCKET).remove([path]).then(function (x) { if (x.error) logError('Foto löschen', x.error); });
       }
     },
+    'kick': async function (t) {
+      var uid = t.getAttribute('data-user'), nm = t.getAttribute('data-name');
+      if (!window.confirm(nm + ' aus der Gruppe entfernen? Alle Getränke und Fotos von ' + nm + ' in dieser Gruppe werden gelöscht.')) return;
+      var gid = state.group.id;
+      if (!(await removePhotos(gid, uid))) return;
+      var r = await sb.rpc('kick_member', { p_group: gid, p_user: uid });
+      if (r.error) { logError('kick_member', r.error); toast(humanError(r.error), 'bad'); return; }
+      toast(nm + ' wurde entfernt.', 'good');
+      await refreshGroupData(false);
+    },
+    'reset-code': async function () {
+      if (!window.confirm('Neuen Code erzeugen? Der alte Code funktioniert danach nicht mehr.')) return;
+      var r = await sb.rpc('reset_invite_code', { p_group: state.group.id });
+      if (r.error) { logError('reset_invite_code', r.error); toast(humanError(r.error), 'bad'); return; }
+      await loadGroups();
+      toast('Neuer Code: ' + r.data, 'good');
+      render(false);
+    },
+    'leave-group': async function () {
+      if (!window.confirm('Gruppe "' + state.group.name + '" verlassen? Deine Getränke und Fotos dort werden gelöscht.')) return;
+      var gid = state.group.id;
+      if (!(await removePhotos(gid, state.uid))) return;
+      var r = await sb.rpc('leave_group', { p_group: gid });
+      if (r.error) { logError('leave_group', r.error); toast(humanError(r.error), 'bad'); return; }
+      await afterGroupGone('Du hast die Gruppe verlassen.');
+    },
+    'delete-group': async function () {
+      var name = state.group.name;
+      var typed = window.prompt('Gruppe "' + name + '" und ALLE Getränke und Fotos darin endgültig löschen?\nZur Bestätigung den Gruppennamen eintippen:');
+      if (typed === null) return;
+      if (typed.trim() !== name) { toast('Name stimmt nicht. Nichts gelöscht.', 'bad'); return; }
+      var gid = state.group.id;
+      if (!(await removePhotos(gid, null))) return;
+      var r = await sb.rpc('delete_group', { p_group: gid });
+      if (r.error) { logError('delete_group', r.error); toast(humanError(r.error), 'bad'); return; }
+      await afterGroupGone('Gruppe gelöscht.');
+    },
     'copy-code': function () { copyText(state.group.invite_code, 'Code kopiert.'); },
     'share-code': function () {
       var url = location.origin + location.pathname.replace(/index\.html$/, '');
@@ -780,6 +852,14 @@
     }
   }
 
+  function parseLimit(raw) {
+    var t = String(raw == null ? '' : raw).trim().replace(',', '.');
+    if (t === '') return null;
+    var n = Number(t);
+    if (!isFinite(n) || n <= 0) return NaN;
+    return n;
+  }
+
   async function onSubmit(form) {
     switch (form.id) {
       case 'auth-form': return onAuthSubmit(form);
@@ -787,8 +867,9 @@
       case 'create-form': return onGroupForm(form, 'create_group', 'p_name', 'group-msg');
       case 'limits-form': {
         var fd = new FormData(form);
-        var pts = Number(String(fd.get('points')).replace(',', '.'));
-        var gr = Number(String(fd.get('grams')).replace(',', '.'));
+        var pts = parseLimit(fd.get('points'));
+        var gr = parseLimit(fd.get('grams'));
+        if (Number.isNaN(pts) || Number.isNaN(gr)) { setMsg('group-msg', 'Bitte eine Zahl größer 0 eintragen oder das Feld leer lassen.'); return; }
         var r = await sb.rpc('set_limits', { p_group: state.group.id, p_points: pts, p_grams: gr });
         if (r.error) { logError('Limits', r.error); setMsg('group-msg', humanError(r.error)); return; }
         await loadGroups();

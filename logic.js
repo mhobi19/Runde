@@ -86,12 +86,13 @@
     return Math.round(volumeMl * abvT / 100 * ALCOHOL_DENSITY * 1000) / 1000;
   }
 
-  /* Wie viele Punkte zählen wirklich? Beide Grenzen gelten: Punkte-Limit und Alkohol-Obergrenze. */
+  /* Wie viele Punkte zählen wirklich? Beide Grenzen gelten: Punkte-Limit und Alkohol-Obergrenze.
+     Ein Limit von null/undefined bedeutet: kein Limit. */
   function awardPoints(o) {
     var raw = o.pointsRaw;
-    var remP = Math.max(0, o.limitPoints - o.usedPoints);
-    var remG = Math.max(0, o.limitGrams - o.usedGrams);
-    var byG = o.alcoholG > 0 ? raw * remG / o.alcoholG : 0;
+    var remP = o.limitPoints == null ? Infinity : Math.max(0, o.limitPoints - o.usedPoints);
+    var remG = o.limitGrams == null ? Infinity : Math.max(0, o.limitGrams - o.usedGrams);
+    var byG = remG === Infinity ? Infinity : (o.alcoholG > 0 ? raw * remG / o.alcoholG : 0);
     var award = floor1(Math.min(raw, remP, byG));
     if (award < 0) award = 0;
     var capped = award < raw - 1e-9;
@@ -101,8 +102,8 @@
       points: award,
       capped: capped,
       reason: reason,
-      remainingPoints: Math.max(0, floor1(remP - award)),
-      remainingGrams: Math.max(0, Math.round((remG - o.alcoholG) * 10) / 10)
+      remainingPoints: remP === Infinity ? null : Math.max(0, floor1(remP - award)),
+      remainingGrams: remG === Infinity ? null : Math.max(0, Math.round((remG - o.alcoholG) * 10) / 10)
     };
   }
 

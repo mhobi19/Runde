@@ -73,28 +73,43 @@
   }
 
   /* ---------- Rangliste ---------- */
-  function meter(label, used, limit, unit) {
+  function limitOrNull(v) { return v == null ? null : Number(v); }
+
+  function bar(used, limit) {
     var pct = limit > 0 ? Math.min(100, Math.round(used / limit * 100)) : 0;
     var cls = pct >= 100 ? ' full' : (pct >= 80 ? ' warn' : '');
-    return '<div class="meter' + cls + '">' +
-      '<div class="meter-head"><span>' + esc(label) + '</span><b>' + fmt(used) + ' / ' + fmt(limit) + (unit ? ' ' + esc(unit) : '') + '</b></div>' +
-      '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
+    return '<div class="bar' + cls + '"><i style="width:' + pct + '%"></i></div>';
+  }
+
+  function ring(used, limit) {
+    var C = 2 * Math.PI * 52;
+    var has = limit != null && limit > 0;
+    var pct = has ? Math.min(1, used / limit) : 0;
+    var cls = !has ? ' none' : (pct >= 1 ? ' full' : (pct >= 0.8 ? ' warn' : ''));
+    var sub = has ? 'von ' + fmt(limit) + ' Punkten' : 'Punkte · kein Limit';
+    return '<div class="ring-wrap' + cls + '">' +
+      '<svg class="ring" viewBox="0 0 120 120" aria-hidden="true"><circle class="r-bg" cx="60" cy="60" r="52"></circle>' +
+      (has ? '<circle class="r-fg" cx="60" cy="60" r="52" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + (C * (1 - pct)).toFixed(1) + '" transform="rotate(-90 60 60)"></circle>' : '') +
+      '</svg><div class="ring-num"><b>' + fmt(used) + '</b><small>' + esc(sub) + '</small></div></div>';
+  }
+
+  function tonightCard(state) {
+    var g = state.group;
+    var t = state.today || { points: 0, grams: 0, count: 0 };
+    var lp = limitOrNull(g.daily_limit), lg = limitOrNull(g.alcohol_limit_g);
+    var alc = '<div class="stat"><span class="stat-l">Alkohol</span><span class="stat-v">' + fmt(t.grams) + ' g</span>' +
+      (lg == null ? '<span class="stat-s">kein Limit</span>' : bar(t.grams, lg) + '<span class="stat-s">von ' + fmt(lg) + ' g</span>') + '</div>';
+    var cnt = '<div class="stat"><span class="stat-l">Getränke</span><span class="stat-v">' + t.count + '</span><span class="stat-s">heute</span></div>';
+    return '<div class="card tonight">' +
+      '<div class="card-title">Dein Abend</div>' +
+      '<div class="tonight-body">' + ring(t.points, lp) + '<div class="tonight-side">' + alc + cnt + '</div></div>' +
+      ((lp != null || lg != null) ? '<p class="tiny muted">Ab Limit gibt es keine Punkte mehr. Wasser, Essen, Pausen.</p>' : '') +
     '</div>';
   }
 
   function rankView(state) {
-    var g = state.group;
     var rows = Logic.rankRows(state.board || []);
-    var today = state.today || { points: 0, grams: 0, count: 0 };
-    var html = '' +
-      '<div class="stack">' +
-        seg('period', 'period', PERIODS, state.period) +
-        '<div class="card meters">' +
-          '<div class="card-title">Dein Abend</div>' +
-          meter('Punkte', today.points, Number(g.daily_limit), '') +
-          meter('Alkohol', today.grams, Number(g.alcohol_limit_g), 'g') +
-          '<p class="tiny muted">Ab Limit gibt es keine Punkte mehr. Wasser, Essen, Pausen.</p>' +
-        '</div>';
+    var html = '<div class="stack">' + seg('period', 'period', PERIODS, state.period) + tonightCard(state);
     if (!rows.length) {
       html += '<div class="empty">Noch niemand in der Gruppe.</div>';
     } else if (rows.every(function (r) { return r.drinks === 0; })) {
@@ -102,10 +117,11 @@
     }
     html += '<ol class="board">' + rows.map(function (r) {
       var me = r.user_id === state.uid;
+      var medal = r.points > 0 && r.rank <= 3 ? ' p' + r.rank : '';
       return '<li class="row' + (me ? ' me' : '') + (r.rank === 1 && r.points > 0 ? ' first' : '') + '">' +
-        '<span class="pos">' + r.rank + '</span>' +
+        '<span class="pos' + medal + '">' + r.rank + '</span>' +
         '<span class="av" style="--c:' + Logic.colorFor(r.user_id) + '">' + esc(Logic.initial(r.display_name)) + '</span>' +
-        '<span class="who"><b>' + esc(r.display_name) + '</b>' + (me ? '<em>du</em>' : '') + '<small>' + r.drinks + (r.drinks === 1 ? ' Getränk' : ' Getränke') + '</small></span>' +
+        '<span class="who"><b>' + esc(r.display_name) + (me ? '<em>du</em>' : '') + '</b><small>' + r.drinks + (r.drinks === 1 ? ' Getränk' : ' Getränke') + '</small></span>' +
         '<span class="pts">' + fmt(r.points) + '</span>' +
       '</li>';
     }).join('') + '</ol></div>';
@@ -131,17 +147,20 @@
     if (Logic.canDelete(d, state.uid, now)) {
       actions += '<button class="icon-btn" data-action="delete" data-id="' + esc(d.id) + '" data-path="' + esc(d.photo_path) + '" aria-label="Löschen">' + icon('trash') + '</button>';
     }
-    return '<article class="item' + (disputed ? ' disputed' : '') + '">' +
-      '<button class="thumb" data-action="zoom" data-path="' + esc(d.photo_path) + '" aria-label="Foto groß"><img data-path="' + esc(d.photo_path) + '" alt="" loading="lazy"></button>' +
-      '<div class="meta">' +
-        '<div class="l1"><b>' + esc(name) + '</b>' + (me ? '<em>du</em>' : '') + '</div>' +
-        '<div class="l2">' + esc(Logic.drinkLabel(d)) + ' · ' + fmt(d.abv) + ' %</div>' +
-        '<div class="l3 muted">' + esc(Logic.timeAgo(d.created_at, now)) + (d.lat == null ? ' · ohne Ort' : '') + '</div>' +
-        (disputed ? '<div class="badge bad">Angezweifelt, zählt nicht</div>' : (flagCount ? '<div class="badge warn">' + flagCount + 'x gemeldet</div>' : '')) +
-      '</div>' +
-      '<div class="side">' +
-        '<div class="gain' + (capped ? ' capped' : '') + '">+' + fmt(d.points) + '</div>' +
-        '<div class="acts">' + actions + '</div>' +
+    return '<article class="post' + (disputed ? ' disputed' : '') + '">' +
+      '<button class="shot-btn" data-action="zoom" data-path="' + esc(d.photo_path) + '" aria-label="Foto groß">' +
+        '<img data-path="' + esc(d.photo_path) + '" alt="" loading="lazy">' +
+        '<span class="gain-chip' + (capped ? ' capped' : '') + '">+' + fmt(d.points) + '</span>' +
+        (disputed ? '<span class="dispute-flag">Angezweifelt, zählt nicht</span>' : '') +
+      '</button>' +
+      '<div class="post-body">' +
+        '<div class="post-head">' +
+          '<span class="av sm" style="--c:' + Logic.colorFor(d.user_id) + '">' + esc(Logic.initial(name)) + '</span>' +
+          '<div class="post-who"><b>' + esc(name) + (me ? '<em>du</em>' : '') + '</b><small>' + esc(Logic.timeAgo(d.created_at, now)) + (d.lat == null ? ' · ohne Ort' : '') + '</small></div>' +
+          '<div class="acts">' + actions + '</div>' +
+        '</div>' +
+        '<div class="post-drink"><b>' + esc(Logic.drinkLabel(d)) + '</b><span>' + fmt(d.abv) + ' % · ' + fmt(d.alcohol_g) + ' g Alkohol</span></div>' +
+        (!disputed && flagCount ? '<div class="badge warn">' + flagCount + 'x gemeldet</div>' : '') +
       '</div>' +
     '</article>';
   }
@@ -174,9 +193,14 @@
       var name = d.profiles && d.profiles.display_name ? d.profiles.display_name : '?';
       return '<div class="pop-row">' +
         '<img data-path="' + esc(d.photo_path) + '" alt="">' +
-        '<div><b>' + esc(name) + '</b><br>' + esc(Logic.drinkLabel(d)) + '<br><span class="pop-sub">' + esc(Logic.timeAgo(d.created_at, now)) + ' · +' + fmt(d.points) + '</span></div>' +
+        '<div class="pop-info">' +
+          '<b>' + esc(name) + '</b>' +
+          '<span class="pop-drink">' + esc(Logic.drinkLabel(d)) + '</span>' +
+          '<span class="pop-sub">' + fmt(d.abv) + ' % · ' + fmt(d.alcohol_g) + ' g Alkohol</span>' +
+          '<span class="pop-sub">' + esc(Logic.timeAgo(d.created_at, now)) + ' · <em class="pop-pts">+' + fmt(d.points) + ' Punkte</em></span>' +
+        '</div>' +
       '</div>';
-    }).join('') + (more > 0 ? '<div class="pop-more">+ ' + more + ' weitere</div>' : '') + '</div>';
+    }).join('') + (more > 0 ? '<div class="pop-more">+ ' + more + ' weitere an diesem Ort</div>' : '') + '</div>';
   }
 
   /* ---------- Gruppe ---------- */
@@ -188,13 +212,16 @@
       var bn = b.profiles ? b.profiles.display_name : '';
       return an.localeCompare(bn, 'de');
     });
+    var lpTxt = g.daily_limit == null ? '' : fmt(g.daily_limit);
+    var lgTxt = g.alcohol_limit_g == null ? '' : fmt(g.alcohol_limit_g);
     var limits = isAdmin
       ? '<form id="limits-form" class="limits-form" novalidate>' +
-          '<label>Punkte-Limit pro Abend<input name="points" type="number" inputmode="decimal" min="1" max="100" step="1" value="' + esc(fmt(g.daily_limit)) + '"></label>' +
-          '<label>Alkohol-Obergrenze (g Reinalkohol)<input name="grams" type="number" inputmode="numeric" min="40" max="150" step="5" value="' + esc(fmt(g.alcohol_limit_g)) + '"></label>' +
+          '<label>Punkte-Limit pro Abend<input name="points" type="text" inputmode="decimal" value="' + esc(lpTxt) + '" placeholder="kein Limit"></label>' +
+          '<label>Alkohol-Obergrenze in g Reinalkohol<input name="grams" type="text" inputmode="decimal" value="' + esc(lgTxt) + '" placeholder="kein Limit"></label>' +
+          '<p class="tiny muted">Frei wählbar. Feld leer lassen = kein Limit.</p>' +
           '<button class="btn" type="submit">Limits speichern</button>' +
         '</form>'
-      : '<p class="muted">Punkte-Limit: ' + fmt(g.daily_limit) + ' pro Abend · Alkohol-Obergrenze: ' + fmt(g.alcohol_limit_g) + ' g. Nur Admins ändern das.</p>';
+      : '<p class="muted">Punkte-Limit: ' + (lpTxt ? esc(lpTxt) + ' pro Abend' : 'keins') + ' · Alkohol-Obergrenze: ' + (lgTxt ? esc(lgTxt) + ' g' : 'keine') + '. Nur Admins ändern das.</p>';
     return '' +
       '<div class="stack">' +
         '<div class="card">' +
@@ -210,7 +237,8 @@
           '<div class="card-title">Mitglieder (' + members.length + ')</div>' +
           '<ul class="members">' + members.map(function (m) {
             var n = m.profiles ? m.profiles.display_name : '?';
-            return '<li><span class="av sm" style="--c:' + Logic.colorFor(m.user_id) + '">' + esc(Logic.initial(n)) + '</span><span>' + esc(n) + (m.user_id === state.uid ? ' <em>du</em>' : '') + '</span>' + (m.role === 'admin' ? '<span class="badge">Admin</span>' : '') + '</li>';
+            return '<li><span class="av sm" style="--c:' + Logic.colorFor(m.user_id) + '">' + esc(Logic.initial(n)) + '</span><span class="m-name">' + esc(n) + (m.user_id === state.uid ? ' <em>du</em>' : '') + '</span>' + (m.role === 'admin' ? '<span class="badge">Admin</span>' : '') +
+              (isAdmin && m.user_id !== state.uid ? '<button class="icon-btn" data-action="kick" data-user="' + esc(m.user_id) + '" data-name="' + esc(n) + '" aria-label="' + esc(n) + ' entfernen">' + icon('x') + '</button>' : '') + '</li>';
           }).join('') + '</ul>' +
         '</div>' +
         '<div class="card">' +
@@ -236,6 +264,15 @@
           '</form>' +
         '</details>' +
         '<p class="msg" id="group-msg" role="alert"></p>' +
+        '<div class="card">' +
+          '<div class="card-title">' + (isAdmin ? 'Admin' : 'Gruppe') + '</div>' +
+          (isAdmin
+            ? '<p class="tiny muted">Nur du kannst Limits ändern, Mitglieder entfernen und die Gruppe löschen. Nach einem Rauswurf: neuen Code erzeugen, sonst kommt die Person mit dem alten Code wieder rein.</p>' +
+              '<button class="btn wide" data-action="reset-code">Neuen Einladungscode erzeugen</button>' +
+              '<button class="btn danger wide" data-action="delete-group">Gruppe löschen</button>'
+            : '<p class="tiny muted">Beim Austreten werden deine Getränke und Fotos in dieser Gruppe gelöscht.</p>' +
+              '<button class="btn danger wide" data-action="leave-group">Gruppe verlassen</button>') +
+        '</div>' +
         '<button class="btn ghost wide" data-action="logout">Abmelden</button>' +
         '<p class="tiny muted center">Trinkt verantwortungsvoll. Im Notfall: 112.</p>' +
       '</div>';

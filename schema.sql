@@ -18,8 +18,8 @@ create table if not exists public.groups (
   id uuid primary key default gen_random_uuid(),
   name text not null check (char_length(name) between 2 and 40),
   invite_code text not null unique,
-  daily_limit numeric not null default 15 check (daily_limit between 1 and 100),
-  alcohol_limit_g numeric not null default 100 check (alcohol_limit_g between 40 and 150),
+  daily_limit numeric default 15 check (daily_limit is null or daily_limit > 0),
+  alcohol_limit_g numeric default 100 check (alcohol_limit_g is null or alcohol_limit_g > 0),
   created_by uuid not null references public.profiles (id),
   created_at timestamptz not null default now()
 );
@@ -276,11 +276,11 @@ begin
   ) then
     raise exception 'Nur Admins dürfen die Limits ändern';
   end if;
-  if p_points is null or p_points < 1 or p_points > 100 then
-    raise exception 'Punkte-Limit: 1 bis 100';
+  if p_points is not null and (p_points <= 0 or p_points > 100000) then
+    raise exception 'Punkte-Limit: eine Zahl größer 0 oder leer für kein Limit';
   end if;
-  if p_grams is null or p_grams < 40 or p_grams > 150 then
-    raise exception 'Alkohol-Obergrenze: 40 bis 150 g';
+  if p_grams is not null and (p_grams <= 0 or p_grams > 100000) then
+    raise exception 'Alkohol-Obergrenze: eine Zahl größer 0 oder leer für kein Limit';
   end if;
   update public.groups
   set daily_limit = p_points, alcohol_limit_g = p_grams
@@ -291,7 +291,7 @@ $$;
 -- Punkte: ABV / 5 pro Standardportion der Kategorie, anteilig nach Menge.
 -- Pils 0,5 l (ca. 5 %) = 1 | Wein 0,2 l (12 %) = 2,4 | Vodka 4 cl (40 %) = 8
 -- Gezählt wird höchstens bis zum Punkte-Limit UND bis zur Alkohol-Obergrenze
--- des Abends (party_day, Tageswechsel 06:00 Uhr Ortszeit, kommt vom Handy).
+-- des Abends (beides frei einstellbar, leer = kein Limit) (party_day, Tageswechsel 06:00 Uhr Ortszeit, kommt vom Handy).
 create or replace function public.log_drink(
   p_group uuid,
   p_category text,
@@ -367,13 +367,13 @@ begin
   from public.drinks
   where group_id = p_group and user_id = v_uid and party_day = p_party_day;
 
-  v_rem_p := greatest(0, v_group.daily_limit - v_used_p);
-  v_rem_g := greatest(0, v_group.alcohol_limit_g - v_used_g);
-  v_by_g := v_raw * v_rem_g / v_g;
+  v_rem_p := case when v_group.daily_limit is null then null else greatest(0, v_group.daily_limit - v_used_p) end;
+  v_rem_g := case when v_group.alcohol_limit_g is null then null else greatest(0, v_group.alcohol_limit_g - v_used_g) end;
+  v_by_g := case when v_rem_g is null then null else v_raw * v_rem_g / v_g end;
   v_award := trunc(least(v_raw, v_rem_p, v_by_g), 1);
 
   if v_award < v_raw then
-    if v_by_g <= v_rem_p then
+    if v_by_g is not null and (v_rem_p is null or v_by_g <= v_rem_p) then
       v_reason := 'alkohol';
     else
       v_reason := 'punkte';
@@ -544,3 +544,140 @@ create policy runde_photos_delete on storage.objects for delete to authenticated
     bucket_id = 'drink-photos'
     and (storage.foldername(name))[2] = auth.uid()::text
   );
+
+-- ---------------------------------------------------------------------
+-- 8. Tabellen-Rechte für angemeldete Nutzer
+--    Neue Supabase-Projekte vergeben diese Rechte nicht mehr automatisch.
+--    Ohne sie kommt "permission denied for table ...". Die Zugriffsregeln
+--    aus Abschnitt 4 (RLS) bestimmen weiterhin, welche Zeilen sichtbar sind.
+-- ---------------------------------------------------------------------
+
+grant usage on schema public to authenticated;
+grant select, update on public.profiles to authenticated;
+grant select on public.groups to authenticated;
+grant select on public.group_members to authenticated;
+grant select on public.categories to authenticated;
+grant select on public.drinks to authenticated;
+grant select on public.drink_flags to authenticated;
+
+-- ---------------------------------------------------------------------
+-- Paket 2b: Admin-Rechte (Rauswerfen, Gruppe löschen, Austreten, neuer Code)
+-- Nur der Admin darf das. Geprüft wird auf dem Server, nicht in der App.
+-- ---------------------------------------------------------------------
+
+create or replace function public.is_admin_txt(gid text)
+returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.group_members
+    where group_id::text = gid and user_id = auth.uid() and role = 'admin'
+  );
+$$;
+
+drop policy if exists members_delete_self on public.group_members;
+revoke delete on public.group_members from authenticated;
+
+drop policy if exists runde_photos_delete on storage.objects;
+create policy runde_photos_delete on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'drink-photos'
+    and (
+      (storage.foldername(name))[2] = auth.uid()::text
+      or public.is_admin_txt((storage.foldername(name))[1])
+    )
+  );
+
+create or replace function public.kick_member(p_group uuid, p_user uuid)
+returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Nicht angemeldet';
+  end if;
+  if not exists (
+    select 1 from public.group_members
+    where group_id = p_group and user_id = auth.uid() and role = 'admin'
+  ) then
+    raise exception 'Nur der Admin darf Mitglieder entfernen';
+  end if;
+  if p_user = auth.uid() then
+    raise exception 'Du kannst dich nicht selbst entfernen. Lösche stattdessen die Gruppe.';
+  end if;
+  if not exists (select 1 from public.group_members where group_id = p_group and user_id = p_user) then
+    raise exception 'Diese Person ist nicht in der Gruppe';
+  end if;
+  delete from public.drinks where group_id = p_group and user_id = p_user;
+  delete from public.group_members where group_id = p_group and user_id = p_user;
+end;
+$$;
+
+create or replace function public.leave_group(p_group uuid)
+returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_role text;
+begin
+  if auth.uid() is null then
+    raise exception 'Nicht angemeldet';
+  end if;
+  select role into v_role from public.group_members
+  where group_id = p_group and user_id = auth.uid();
+  if v_role is null then
+    raise exception 'Du bist nicht in dieser Gruppe';
+  end if;
+  if v_role = 'admin' then
+    raise exception 'Der Admin kann nicht austreten. Lösche die Gruppe, wenn sie nicht mehr gebraucht wird.';
+  end if;
+  delete from public.drinks where group_id = p_group and user_id = auth.uid();
+  delete from public.group_members where group_id = p_group and user_id = auth.uid();
+end;
+$$;
+
+create or replace function public.delete_group(p_group uuid)
+returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Nicht angemeldet';
+  end if;
+  if not exists (
+    select 1 from public.group_members
+    where group_id = p_group and user_id = auth.uid() and role = 'admin'
+  ) then
+    raise exception 'Nur der Admin darf die Gruppe löschen';
+  end if;
+  delete from public.groups where id = p_group;
+end;
+$$;
+
+create or replace function public.reset_invite_code(p_group uuid)
+returns text
+language plpgsql security definer set search_path = public as $$
+declare
+  v_code text;
+begin
+  if auth.uid() is null then
+    raise exception 'Nicht angemeldet';
+  end if;
+  if not exists (
+    select 1 from public.group_members
+    where group_id = p_group and user_id = auth.uid() and role = 'admin'
+  ) then
+    raise exception 'Nur der Admin darf den Code erneuern';
+  end if;
+  v_code := public.make_invite_code();
+  update public.groups set invite_code = v_code where id = p_group;
+  return v_code;
+end;
+$$;
+
+revoke all on function public.kick_member(uuid, uuid) from public, anon;
+revoke all on function public.leave_group(uuid) from public, anon;
+revoke all on function public.delete_group(uuid) from public, anon;
+revoke all on function public.reset_invite_code(uuid) from public, anon;
+revoke all on function public.is_admin_txt(text) from public, anon;
+grant execute on function public.kick_member(uuid, uuid) to authenticated;
+grant execute on function public.leave_group(uuid) to authenticated;
+grant execute on function public.delete_group(uuid) to authenticated;
+grant execute on function public.reset_invite_code(uuid) to authenticated;
+grant execute on function public.is_admin_txt(text) to authenticated;
