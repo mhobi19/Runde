@@ -271,3 +271,7 @@ grant execute on function public.leave_group(uuid) to authenticated;
 grant execute on function public.delete_group(uuid) to authenticated;
 grant execute on function public.reset_invite_code(uuid) to authenticated;
 grant execute on function public.is_admin_txt(text) to authenticated;
+
+-- Neue Kategorie Radler: 0,5 l Radler (2,5 %) = 0,1 Punkte
+insert into public.categories (key, label, ref_ml) values ('radler', 'Radler', 2500)
+on conflict (key) do update set label = excluded.label, ref_ml = excluded.ref_ml;

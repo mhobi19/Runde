@@ -40,6 +40,7 @@ create table if not exists public.categories (
 
 insert into public.categories (key, label, ref_ml) values
   ('bier', 'Bier', 500),
+  ('radler', 'Radler', 2500),
   ('wein', 'Wein', 200),
   ('sekt', 'Sekt', 100),
   ('spirituose', 'Spirituose', 40),

@@ -24,7 +24,7 @@
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:radial-gradient(120% 60% at 85% -10%,rgba(167,139,250,.16),transparent 60%),radial-gradient(90% 50% at -10% 0%,rgba(212,175,55,.10),transparent 55%),var(--bg);background-attachment:fixed;color:var(--tx);
-  font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font:16px/1.4 ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   -webkit-font-smoothing:antialiased}
 [hidden]{display:none!important}
 button,input,select{font:inherit;color:inherit}
@@ -253,6 +253,39 @@ details.more form{margin-top:8px}
   background:#1f1f33;border:1px solid var(--line);color:var(--tx);padding:12px 16px;border-radius:14px;z-index:90;box-shadow:0 10px 30px rgba(0,0,0,.5);font-size:14px;text-align:center}
 .toast.bad{border-color:rgba(248,113,113,.6)}
 .toast.good{border-color:rgba(212,175,55,.7)}
+
+/* ---------- Design-Pass: Untersetzer-Motiv, Rundschrift, ruhige Beschriftung ---------- */
+.card-title,.label,.stat-l,.invite-l{text-transform:none;letter-spacing:0;font-size:15px;font-weight:600;color:var(--mut)}
+.label{margin-bottom:-4px}
+.tonight .card-title{font-size:17px;color:var(--tx)}
+.stat-v,.ring-num b,.pts,.pv-pts b,.gain-chip{font-feature-settings:"tnum"}
+.cats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 6px}
+.cat{display:flex;flex-direction:column;align-items:center;gap:6px;border:0;background:transparent;color:var(--mut);cursor:pointer;padding:0;font-weight:600;font-size:13px}
+.cat-disc{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;background:var(--s1);border:1.5px solid var(--line);transition:transform .15s,border-color .15s,background .15s}
+.cat-disc .ic{width:26px;height:26px}
+.cat:active .cat-disc{transform:scale(.94)}
+.cat.on{color:var(--gold)}
+.cat.on .cat-disc{border-color:var(--gold);background:radial-gradient(circle at 35% 30%,rgba(212,175,55,.28),rgba(212,175,55,.06));box-shadow:0 0 0 4px rgba(212,175,55,.12)}
+.chip{border-radius:99px;padding:6px 14px;min-height:40px;align-items:center}
+.preview{display:grid;grid-template-columns:auto 1fr;grid-template-areas:"n s" "n w";column-gap:16px;align-items:center;background:linear-gradient(160deg,rgba(212,175,55,.10),var(--s1) 60%);border-color:rgba(212,175,55,.3)}
+.pv-pts{grid-area:n;display:flex;flex-direction:column;align-items:flex-start;line-height:1}
+.pv-pts b{font-size:48px}
+.pv-sub{grid-area:s;font-size:14px;align-self:end}
+.note{grid-column:1/-1}
+.photo-btn{border-radius:20px;padding:26px 12px}
+.photo-btn .ic{width:34px;height:34px}
+.sec{display:flex;flex-direction:column;gap:12px;padding-top:18px;border-top:1px solid var(--line)}
+.sec h3,.fold h4{margin:0;font-size:17px;font-weight:700}
+.fold h4{font-size:15px;color:var(--mut);font-weight:600;margin-top:6px}
+.sec h3 .count{font-weight:600;color:var(--mut);margin-left:6px}
+.invite{text-align:center;background:linear-gradient(160deg,rgba(167,139,250,.12),var(--s1) 60%);border-color:rgba(167,139,250,.3)}
+.fold{border-top:1px solid var(--line);padding-top:16px;display:flex;flex-direction:column;gap:12px}
+.fold>summary{cursor:pointer;font-weight:700;font-size:17px;list-style:none;display:flex;align-items:center;justify-content:space-between}
+.fold>summary::-webkit-details-marker{display:none}
+.fold>summary::after{content:"";width:9px;height:9px;border-right:2px solid var(--mut);border-bottom:2px solid var(--mut);transform:rotate(45deg);transition:transform .2s;margin-right:4px}
+.fold[open]>summary::after{transform:rotate(-135deg)}
+.fold[open]>summary{margin-bottom:4px}
+.group-view{gap:18px}
 </style>
 </head>
 <body>
@@ -272,6 +305,13 @@ details.more form{margin-top:8px}
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></symbol>
   <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-bier" viewBox="0 0 24 24"><path d="M5.5 8h10v10.5a1.5 1.5 0 0 1-1.5 1.5H7a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M15.5 10H18a1.5 1.5 0 0 1 1.5 1.5v3A1.5 1.5 0 0 1 18 16h-2.5"/><path d="M5.5 8c-1.2 0-2-.9-2-2s.9-2 2-2c.4-1 1.3-1.6 2.5-1.6S10 3 10.4 4c.5-.4 1-.6 1.6-.6 1.3 0 2.3 1 2.3 2.3 0 1.4-.9 2.3-2 2.3"/><path d="M9 11.5v5M12 11.5v5"/></symbol>
+  <symbol id="i-radler" viewBox="0 0 24 24"><path d="M6.5 4h9l-1 16h-7z"/><path d="M7 9h8"/><circle cx="17.5" cy="5.5" r="2.7"/><path d="M17.5 2.8v5.4M14.8 5.5h5.4"/></symbol>
+  <symbol id="i-wein" viewBox="0 0 24 24"><path d="M8 3h8v5.2a4 4 0 0 1-8 0z"/><path d="M12 12.2V20M8.5 20h7"/><path d="M8 7.5h8"/></symbol>
+  <symbol id="i-sekt" viewBox="0 0 24 24"><path d="M9.5 3h5l-.6 9.2a1.9 1.9 0 0 1-3.8 0z"/><path d="M12 14V20M9 20h6"/><path d="M12 6.5h.01M12.8 9h.01"/></symbol>
+  <symbol id="i-spirituose" viewBox="0 0 24 24"><path d="M6.5 4h11l-1.5 15a1.5 1.5 0 0 1-1.5 1.4h-5A1.5 1.5 0 0 1 8 19z"/><path d="M7.2 10h9.6"/></symbol>
+  <symbol id="i-cocktail" viewBox="0 0 24 24"><path d="M4 5h16l-8 8.5z"/><path d="M12 13.5V20M8 20h8"/><path d="M16.5 2.5 14 7"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></symbol>
 </svg>
 
 <div id="boot">Lädt…</div>

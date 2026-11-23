@@ -18,6 +18,7 @@
 
   var CATEGORIES = [
     { key: 'bier', label: 'Bier', refMl: 500, sizes: [200, 330, 500, 1000], defaultSize: 500 },
+    { key: 'radler', label: 'Radler', refMl: 2500, sizes: [330, 500, 1000], defaultSize: 500 },
     { key: 'wein', label: 'Wein', refMl: 200, sizes: [100, 200, 250], defaultSize: 200 },
     { key: 'sekt', label: 'Sekt', refMl: 100, sizes: [100, 150], defaultSize: 100 },
     { key: 'spirituose', label: 'Spirituose', refMl: 40, sizes: [20, 40], defaultSize: 40 },
@@ -30,7 +31,8 @@
     { key: 'weizen', name: 'Weizen', category: 'bier', abv: 5.4 },
     { key: 'alt', name: 'Alt', category: 'bier', abv: 4.8 },
     { key: 'koelsch', name: 'Kölsch', category: 'bier', abv: 4.8 },
-    { key: 'radler', name: 'Radler', category: 'bier', abv: 2.5 },
+    { key: 'radler', name: 'Radler', category: 'radler', abv: 2.5 },
+    { key: 'alster', name: 'Alster', category: 'radler', abv: 2.5 },
     { key: 'weisswein', name: 'Weißwein', category: 'wein', abv: 11.5 },
     { key: 'rotwein', name: 'Rotwein', category: 'wein', abv: 13 },
     { key: 'sekt', name: 'Sekt', category: 'sekt', abv: 11 },
@@ -43,9 +45,15 @@
     { key: 'gin', name: 'Gin', category: 'spirituose', abv: 40 },
     { key: 'korn', name: 'Korn', category: 'spirituose', abv: 32 },
     { key: 'aperol', name: 'Aperol Spritz', category: 'cocktail', abv: 8 },
+    { key: 'hugo', name: 'Hugo', category: 'cocktail', abv: 8 },
     { key: 'gintonic', name: 'Gin Tonic', category: 'cocktail', abv: 9 },
+    { key: 'moscowmule', name: 'Moscow Mule', category: 'cocktail', abv: 10 },
+    { key: 'mojito', name: 'Mojito', category: 'cocktail', abv: 11 },
+    { key: 'caipi', name: 'Caipirinha', category: 'cocktail', abv: 15 },
     { key: 'cubalibre', name: 'Cuba Libre', category: 'cocktail', abv: 8 },
-    { key: 'caipi', name: 'Caipirinha', category: 'cocktail', abv: 15 }
+    { key: 'longisland', name: 'Long Island Iced Tea', category: 'cocktail', abv: 18 },
+    { key: 'pinacolada', name: 'Piña Colada', category: 'cocktail', abv: 12 },
+    { key: 'sexonthebeach', name: 'Sex on the Beach', category: 'cocktail', abv: 10 }
   ];
 
   var COLORS = ['#D4AF37', '#A78BFA', '#34D399', '#F87171', '#60A5FA', '#FB923C', '#F472B6', '#2DD4BF', '#A3E635', '#E879F9'];

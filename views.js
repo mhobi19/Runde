@@ -222,10 +222,27 @@
           '<button class="btn" type="submit">Limits speichern</button>' +
         '</form>'
       : '<p class="muted">Punkte-Limit: ' + (lpTxt ? esc(lpTxt) + ' pro Abend' : 'keins') + ' · Alkohol-Obergrenze: ' + (lgTxt ? esc(lgTxt) + ' g' : 'keine') + '. Nur Admins ändern das.</p>';
+    var memberList = '<ul class="members">' + members.map(function (m) {
+      var n = m.profiles ? m.profiles.display_name : '?';
+      return '<li><span class="av sm" style="--c:' + Logic.colorFor(m.user_id) + '">' + esc(Logic.initial(n)) + '</span><span class="m-name">' + esc(n) + (m.user_id === state.uid ? ' <em>du</em>' : '') + '</span>' + (m.role === 'admin' ? '<span class="badge">Admin</span>' : '') +
+        (isAdmin && m.user_id !== state.uid ? '<button class="icon-btn" data-action="kick" data-user="' + esc(m.user_id) + '" data-name="' + esc(n) + '" aria-label="' + esc(n) + ' entfernen">' + icon('x') + '</button>' : '') + '</li>';
+    }).join('') + '</ul>';
+    var adminBox = isAdmin
+      ? '<details class="fold" id="admin-fold"' + (state.adminOpen ? ' open' : '') + '><summary>Einstellungen für Admins</summary>' +
+          '<h4>Limits pro Abend</h4>' + limits +
+          '<p class="tiny muted">Punkte: Alkoholgehalt ÷ 5 pro Standardportion (Pils 0,5 l = 1, Vodka 4 cl = 8, Radler 0,5 l = 0,1). Der Abend wechselt um 6 Uhr morgens.</p>' +
+          '<h4>Gruppe verwalten</h4>' +
+          '<p class="tiny muted">Nur du kannst Limits ändern, Mitglieder entfernen und die Gruppe löschen. Nach einem Rauswurf: neuen Code erzeugen, sonst kommt die Person mit dem alten Code wieder rein.</p>' +
+          '<button class="btn wide" data-action="reset-code">Neuen Einladungscode erzeugen</button>' +
+          '<button class="btn danger wide" data-action="delete-group">Gruppe löschen</button>' +
+        '</details>'
+      : '<section class="sec"><h3>Limits</h3>' + limits +
+          '<button class="btn danger wide" data-action="leave-group">Gruppe verlassen</button>' +
+          '<p class="tiny muted">Beim Austreten werden deine Getränke und Fotos in dieser Gruppe gelöscht.</p></section>';
     return '' +
-      '<div class="stack">' +
-        '<div class="card">' +
-          '<div class="card-title">Einladungscode</div>' +
+      '<div class="stack group-view">' +
+        '<div class="card invite">' +
+          '<div class="invite-l">Einladungscode</div>' +
           '<div class="code">' + esc(g.invite_code) + '</div>' +
           '<div class="row-btns">' +
             '<button class="btn" data-action="copy-code">' + icon('copy') + 'Kopieren</button>' +
@@ -233,29 +250,17 @@
           '</div>' +
           '<p class="tiny muted">Wer den Code hat, kann beitreten und sieht Fotos und Orte der Gruppe. Gib ihn nur an Freunde.</p>' +
         '</div>' +
-        '<div class="card">' +
-          '<div class="card-title">Mitglieder (' + members.length + ')</div>' +
-          '<ul class="members">' + members.map(function (m) {
-            var n = m.profiles ? m.profiles.display_name : '?';
-            return '<li><span class="av sm" style="--c:' + Logic.colorFor(m.user_id) + '">' + esc(Logic.initial(n)) + '</span><span class="m-name">' + esc(n) + (m.user_id === state.uid ? ' <em>du</em>' : '') + '</span>' + (m.role === 'admin' ? '<span class="badge">Admin</span>' : '') +
-              (isAdmin && m.user_id !== state.uid ? '<button class="icon-btn" data-action="kick" data-user="' + esc(m.user_id) + '" data-name="' + esc(n) + '" aria-label="' + esc(n) + ' entfernen">' + icon('x') + '</button>' : '') + '</li>';
-          }).join('') + '</ul>' +
-        '</div>' +
-        '<div class="card">' +
-          '<div class="card-title">Limits</div>' + limits +
-          '<p class="tiny muted">Punkte: ABV ÷ 5 pro Standardportion (Pils 0,5 l = 1, Vodka 4 cl = 8). Der Abend wechselt um 6 Uhr morgens.</p>' +
-        '</div>' +
-        '<div class="card">' +
-          '<div class="card-title">Mein Name</div>' +
+        '<section class="sec"><h3>Mitglieder <span class="count">' + members.length + '</span></h3>' + memberList + '</section>' +
+        adminBox +
+        '<section class="sec"><h3>Mein Name</h3>' +
           '<form id="rename-form" class="inline-form" novalidate>' +
             '<input name="name" type="text" maxlength="24" value="' + esc(state.profile ? state.profile.display_name : '') + '" aria-label="Mein Name">' +
             '<button class="btn" type="submit">Ändern</button>' +
           '</form>' +
-        '</div>' +
-        '<details class="card more">' +
-          '<summary>Weitere Gruppe</summary>' +
+        '</section>' +
+        '<details class="fold"><summary>Weitere Gruppe beitreten oder erstellen</summary>' +
           '<form id="join-form" class="inline-form" novalidate>' +
-            '<input name="code" type="text" maxlength="12" autocapitalize="characters" autocomplete="off" placeholder="CODE" aria-label="Einladungscode">' +
+            '<input name="code" type="text" maxlength="12" autocapitalize="characters" autocomplete="off" placeholder="Code" aria-label="Einladungscode">' +
             '<button class="btn" type="submit">Beitreten</button>' +
           '</form>' +
           '<form id="create-form" class="inline-form" novalidate>' +
@@ -264,15 +269,6 @@
           '</form>' +
         '</details>' +
         '<p class="msg" id="group-msg" role="alert"></p>' +
-        '<div class="card">' +
-          '<div class="card-title">' + (isAdmin ? 'Admin' : 'Gruppe') + '</div>' +
-          (isAdmin
-            ? '<p class="tiny muted">Nur du kannst Limits ändern, Mitglieder entfernen und die Gruppe löschen. Nach einem Rauswurf: neuen Code erzeugen, sonst kommt die Person mit dem alten Code wieder rein.</p>' +
-              '<button class="btn wide" data-action="reset-code">Neuen Einladungscode erzeugen</button>' +
-              '<button class="btn danger wide" data-action="delete-group">Gruppe löschen</button>'
-            : '<p class="tiny muted">Beim Austreten werden deine Getränke und Fotos in dieser Gruppe gelöscht.</p>' +
-              '<button class="btn danger wide" data-action="leave-group">Gruppe verlassen</button>') +
-        '</div>' +
         '<button class="btn ghost wide" data-action="logout">Abmelden</button>' +
         '<p class="tiny muted center">Trinkt verantwortungsvoll. Im Notfall: 112.</p>' +
       '</div>';
@@ -334,8 +330,8 @@
   function logSheetView(ls, ctx) {
     var cat = currentCategory(ls);
     var catButtons = Logic.CATEGORIES.map(function (c) {
-      return '<button type="button" class="' + (!ls.custom && c.key === ls.category ? 'on' : '') + '" data-action="log-category" data-key="' + c.key + '">' + esc(c.label) + '</button>';
-    }).join('') + '<button type="button" class="' + (ls.custom ? 'on' : '') + '" data-action="log-custom">Eigenes</button>';
+      return '<button type="button" class="cat' + (!ls.custom && c.key === ls.category ? ' on' : '') + '" data-action="log-category" data-key="' + c.key + '"><span class="cat-disc">' + icon(c.key) + '</span><span class="cat-name">' + esc(c.label) + '</span></button>';
+    }).join('') + '<button type="button" class="cat' + (ls.custom ? ' on' : '') + '" data-action="log-custom"><span class="cat-disc">' + icon('edit') + '</span><span class="cat-name">Eigenes</span></button>';
 
     var body;
     if (ls.custom) {
@@ -363,7 +359,7 @@
       '<div class="sheet-card" role="dialog" aria-modal="true" aria-label="Getränk loggen">' +
         '<header class="sheet-head"><h2>Getränk loggen</h2><button class="icon-btn" data-action="close-sheet" aria-label="Schließen">' + icon('x') + '</button></header>' +
         '<div class="sheet-body">' +
-          '<div class="seg scroll">' + catButtons + '</div>' +
+          '<div class="cats">' + catButtons + '</div>' +
           body +
           '<div id="log-preview">' + logPreview(ls, ctx) + '</div>' +
           '<div id="log-photo">' + logPhoto(ls) + '</div>' +

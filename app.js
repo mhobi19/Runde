@@ -893,6 +893,9 @@
 
   /* ---------- Ereignisse ---------- */
   function bindEvents() {
+    document.addEventListener('toggle', function (e) {
+      if (e.target && e.target.id === 'admin-fold') state.adminOpen = e.target.open;
+    }, true);
     document.addEventListener('click', function (e) {
       var t = e.target.closest ? e.target.closest('[data-action],[data-tab]') : null;
       if (!t) return;
