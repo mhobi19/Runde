@@ -302,6 +302,29 @@ details.more form{margin-top:8px}
 .pod.p2 .pod-step{height:46px;background:linear-gradient(180deg,#c9c9d6,#71717f)}
 .pod.p3 .pod-step{height:34px;background:linear-gradient(180deg,#b07a4a,#6b4526)}
 .pod small{color:var(--mut);font-size:12px}
+
+/* ---------- Hintergrund: Bar-Licht, Bläschen, Untersetzer-Ringe ---------- */
+#bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+#screen-app,#screen-auth{position:relative;z-index:1}
+.rings{position:absolute;width:520px;height:520px;left:-210px;bottom:-130px;fill:none;stroke:var(--vio);stroke-width:1.2;opacity:.26}
+.rings circle:nth-child(2){opacity:.8}.rings circle:nth-child(3){opacity:.6}.rings circle:nth-child(4){opacity:.4}
+.wm{position:absolute;width:440px;height:440px;right:-110px;top:70px;transform:rotate(12deg);fill:none;stroke:var(--gold);stroke-width:.075;stroke-linecap:round;stroke-linejoin:round;opacity:0;transition:opacity .7s}
+.wm-rank{top:auto;bottom:110px;right:-120px;width:460px;height:460px}
+.wm-feed{right:auto;left:-130px;top:auto;bottom:30px;transform:rotate(-10deg)}
+.wm-group{top:auto;bottom:70px;right:-100px}
+.wm-auth{right:50%;margin-right:-220px;top:auto;bottom:-40px;transform:rotate(0)}
+body[data-scene=rank] .wm-rank,body[data-scene=feed] .wm-feed,body[data-scene=group] .wm-group,body[data-scene=auth] .wm-auth{opacity:.26}
+.bub{position:absolute;bottom:-40px;left:var(--x);width:var(--s);height:var(--s);border-radius:50%;border:1.5px solid rgba(212,175,55,.7);background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.28),rgba(212,175,55,.05) 65%);opacity:var(--o);animation:bubup var(--t) linear var(--d) infinite;will-change:transform}
+.bub.v{border-color:rgba(167,139,250,.75);background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.25),rgba(167,139,250,.06) 65%)}
+#bg::before{content:"";position:absolute;left:-20%;right:-20%;bottom:-12%;height:60%;background:radial-gradient(55% 70% at 50% 100%,rgba(212,175,55,.2),transparent 72%)}
+#bg::after{content:"";position:absolute;left:30%;right:-30%;top:-10%;height:45%;background:radial-gradient(55% 70% at 60% 0%,rgba(167,139,250,.22),transparent 72%)}
+@keyframes bubup{from{transform:translate(0,0)}to{transform:translate(var(--dx),-115vh)}}
+@media (prefers-reduced-motion:reduce){.bub{animation:none;bottom:20%}}
+.top,.tabs{background:rgba(11,11,20,.72);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.card,.row,.post,.preview{background-color:rgba(20,20,32,.74)}
+.card,.row{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+#screen-app>#view{background:transparent}
+.device-note{margin:0}
 </style>
 </head>
 <body>
@@ -329,6 +352,32 @@ details.more form{margin-top:8px}
   <symbol id="i-cocktail" viewBox="0 0 24 24"><path d="M4 5h16l-8 8.5z"/><path d="M12 13.5V20M8 20h8"/><path d="M16.5 2.5 14 7"/></symbol>
   <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></symbol>
 </svg>
+
+<div id="bg" aria-hidden="true">
+  <svg class="rings" viewBox="0 0 400 400"><circle cx="200" cy="200" r="190"/><circle cx="200" cy="200" r="150"/><circle cx="200" cy="200" r="110"/><circle cx="200" cy="200" r="70"/></svg>
+  <svg class="wm wm-rank" viewBox="0 0 24 24"><use href="#i-bier"></use></svg>
+  <svg class="wm wm-feed" viewBox="0 0 24 24"><use href="#i-cocktail"></use></svg>
+  <svg class="wm wm-group" viewBox="0 0 24 24"><use href="#i-wein"></use></svg>
+  <svg class="wm wm-auth" viewBox="0 0 24 24"><use href="#i-sekt"></use></svg>
+  <i class="bub v" style="--x:43%;--s:10px;--t:63s;--d:-6s;--dx:-31px;--o:0.53"></i>
+  <i class="bub" style="--x:14%;--s:12px;--t:41s;--d:-32s;--dx:-13px;--o:0.39"></i>
+  <i class="bub" style="--x:57%;--s:14px;--t:42s;--d:-15s;--dx:-29px;--o:0.48"></i>
+  <i class="bub v" style="--x:9%;--s:30px;--t:45s;--d:-14s;--dx:40px;--o:0.49"></i>
+  <i class="bub" style="--x:9%;--s:18px;--t:63s;--d:-6s;--dx:-12px;--o:0.39"></i>
+  <i class="bub" style="--x:19%;--s:12px;--t:64s;--d:-18s;--dx:29px;--o:0.4"></i>
+  <i class="bub v" style="--x:41%;--s:18px;--t:49s;--d:-6s;--dx:34px;--o:0.48"></i>
+  <i class="bub" style="--x:26%;--s:12px;--t:44s;--d:-35s;--dx:-32px;--o:0.48"></i>
+  <i class="bub" style="--x:81%;--s:10px;--t:69s;--d:-68s;--dx:14px;--o:0.52"></i>
+  <i class="bub v" style="--x:61%;--s:18px;--t:67s;--d:-46s;--dx:-2px;--o:0.42"></i>
+  <i class="bub" style="--x:25%;--s:24px;--t:53s;--d:-5s;--dx:33px;--o:0.43"></i>
+  <i class="bub" style="--x:65%;--s:12px;--t:66s;--d:-36s;--dx:37px;--o:0.56"></i>
+  <i class="bub v" style="--x:17%;--s:18px;--t:64s;--d:-21s;--dx:3px;--o:0.41"></i>
+  <i class="bub" style="--x:64%;--s:14px;--t:40s;--d:-4s;--dx:31px;--o:0.48"></i>
+  <i class="bub" style="--x:42%;--s:12px;--t:60s;--d:-38s;--dx:23px;--o:0.48"></i>
+  <i class="bub v" style="--x:60%;--s:8px;--t:43s;--d:-17s;--dx:20px;--o:0.51"></i>
+  <i class="bub" style="--x:10%;--s:8px;--t:57s;--d:-41s;--dx:33px;--o:0.56"></i>
+  <i class="bub" style="--x:59%;--s:12px;--t:62s;--d:-56s;--dx:4px;--o:0.38"></i>
+</div>
 
 <div id="boot">Lädt…</div>
 

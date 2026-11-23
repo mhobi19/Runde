@@ -237,6 +237,7 @@
           '<button class="btn" type="submit">Limits speichern</button>' +
         '</form>'
       : '<p class="muted">Punkte-Limit: ' + (lpTxt ? esc(lpTxt) + ' pro Abend' : 'keins') + ' · Alkohol-Obergrenze: ' + (lgTxt ? esc(lgTxt) + ' g' : 'keine') + '. Nur Admins ändern das.</p>';
+    var prefs = state.prefs || { camera: 'auto', geo: 'auto' };
     var memberList = '<ul class="members">' + members.map(function (m) {
       var n = m.profiles ? m.profiles.display_name : '?';
       return '<li><span class="av sm" style="--c:' + Logic.colorFor(m.user_id) + '">' + esc(Logic.initial(n)) + '</span><span class="m-name">' + esc(n) + (m.user_id === state.uid ? ' <em>du</em>' : '') + '</span>' + (m.role === 'admin' ? '<span class="badge">Admin</span>' : '') +
@@ -272,6 +273,11 @@
             '<input name="name" type="text" maxlength="24" value="' + esc(state.profile ? state.profile.display_name : '') + '" aria-label="Mein Name">' +
             '<button class="btn" type="submit">Ändern</button>' +
           '</form>' +
+        '</section>' +
+        '<section class="sec"><h3>Dieses Gerät</h3>' +
+          '<label>Kamera<select data-pref="camera"><option value="auto"' + (prefs.camera === 'system' ? '' : ' selected') + '>Live-Kamera in der App</option><option value="system"' + (prefs.camera === 'system' ? ' selected' : '') + '>Systemkamera, ohne Abfrage</option></select></label>' +
+          '<label>Standort<select data-pref="geo"><option value="auto"' + (prefs.geo === 'off' ? '' : ' selected') + '>Automatisch erfassen</option><option value="off"' + (prefs.geo === 'off' ? ' selected' : '') + '>Aus</option></select></label>' +
+          '<p class="tiny muted">Frage nur beim ersten Mal „Erlauben“ wählen, nicht „Einmal“. Dann merkt sich der Browser es. iPhone: Einstellungen → Safari → Kamera und Standort → Erlauben. Wurde abgelehnt, nutzt die App die Systemkamera und fragt nicht erneut.</p>' +
         '</section>' +
         '<details class="fold"><summary>Weitere Gruppe beitreten oder erstellen</summary>' +
           '<form id="join-form" class="inline-form" novalidate>' +
@@ -326,6 +332,7 @@
     var s = geo && geo.status;
     if (s === 'ok') return '<span class="dot ok"></span>Standort erfasst';
     if (s === 'pending') return '<span class="dot wait"></span>Standort wird ermittelt…';
+    if (s === 'off') return '<span class="dot bad"></span>Standort aus. Das Getränk erscheint nicht auf der Karte. Einstellung unter Gruppe.';
     if (s === 'denied') return '<span class="dot bad"></span>Standort nicht erlaubt. Das Getränk erscheint nicht auf der Karte.';
     return '<span class="dot bad"></span>Kein Standort verfügbar. Das Getränk erscheint nicht auf der Karte.';
   }

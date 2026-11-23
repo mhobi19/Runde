@@ -18,9 +18,34 @@
     groups: [], group: null, members: [], drinks: [], board: [], mapDrinks: [],
     today: { points: 0, grams: 0, count: 0 },
     tab: 'rank', period: 'heute', mapPeriod: 'woche',
-    now: new Date(), authMode: 'login', log: null, loadToken: 0
+    now: new Date(), authMode: 'login', log: null, loadToken: 0, prefs: null, adminOpen: false
   };
+  var PREF_KEY = 'runde_device';
   var photoCache = {};
+  var lastGeo = null;
+
+  function loadPrefs() {
+    var d = { camera: 'auto', geo: 'auto' };
+    try {
+      var raw = localStorage.getItem(PREF_KEY);
+      if (raw) {
+        var o = JSON.parse(raw);
+        if (o.camera === 'system') d.camera = 'system';
+        if (o.geo === 'off') d.geo = 'off';
+      }
+    } catch (e) { logError('Geräte-Einstellungen lesen', e); }
+    return d;
+  }
+
+  function savePrefs() {
+    try { localStorage.setItem(PREF_KEY, JSON.stringify(state.prefs)); }
+    catch (e) { logError('Geräte-Einstellungen speichern', e); }
+  }
+
+  function permState(name) {
+    if (!navigator.permissions || !navigator.permissions.query) return Promise.resolve('unknown');
+    return navigator.permissions.query({ name: name }).then(function (r) { return r.state; }, function () { return 'unknown'; });
+  }
   var map = null, mapEl = null, markerLayer = null, mapFitted = false;
   var cam = { stream: null };
   var toastTimer = null;
@@ -85,6 +110,7 @@
 
   /* ---------- Start ---------- */
   async function init() {
+    state.prefs = loadPrefs();
     if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
       navigator.serviceWorker.register('sw.js').catch(function (e) { logError('Service Worker', e); });
     }
@@ -123,6 +149,7 @@
   /* ---------- Anmeldung ---------- */
   function showAuth() {
     $('screen-app').hidden = true;
+    document.body.setAttribute('data-scene', 'auth');
     var a = $('screen-auth');
     a.innerHTML = Views.authView(state.authMode);
     a.hidden = false;
@@ -296,6 +323,7 @@
 
   /* ---------- Anzeige ---------- */
   function updateNav() {
+    document.body.setAttribute('data-scene', state.group ? state.tab : 'group');
     Array.prototype.forEach.call(document.querySelectorAll('.tabs [data-tab]'), function (b) {
       b.classList.toggle('on', b.getAttribute('data-tab') === state.tab);
     });
@@ -477,18 +505,32 @@
     if (b && state.log) b.disabled = Views.logSaveDisabled(state.log);
   }
 
-  function startGeo() {
+  function setGeo(ls, geo) {
+    if (state.log !== ls) return;
+    ls.geo = geo;
+    var el = $('log-geo'); if (el) el.innerHTML = Views.geoLine(geo);
+  }
+
+  async function startGeo() {
     var ls = state.log;
-    if (!navigator.geolocation) { ls.geo = { status: 'unavailable' }; return; }
+    if (!navigator.geolocation) { setGeo(ls, { status: 'unavailable' }); return; }
+    if (state.prefs.geo === 'off') { setGeo(ls, { status: 'off' }); return; }
+    if (lastGeo && Date.now() - lastGeo.t < 120000) { setGeo(ls, { status: 'ok', lat: lastGeo.lat, lng: lastGeo.lng }); return; }
+    var perm = await permState('geolocation');
+    if (state.log !== ls) return;
+    if (perm === 'denied') { setGeo(ls, { status: 'off' }); return; }
     navigator.geolocation.getCurrentPosition(function (pos) {
-      if (state.log !== ls) return;
-      ls.geo = { status: 'ok', lat: pos.coords.latitude, lng: pos.coords.longitude };
-      var el = $('log-geo'); if (el) el.innerHTML = Views.geoLine(ls.geo);
+      lastGeo = { lat: pos.coords.latitude, lng: pos.coords.longitude, t: Date.now() };
+      setGeo(ls, { status: 'ok', lat: lastGeo.lat, lng: lastGeo.lng });
     }, function (err) {
-      if (state.log !== ls) return;
       logError('Standort', err);
-      ls.geo = { status: err && err.code === 1 ? 'denied' : 'error' };
-      var el = $('log-geo'); if (el) el.innerHTML = Views.geoLine(ls.geo);
+      if (err && err.code === 1) {
+        state.prefs.geo = 'off';
+        savePrefs();
+        setGeo(ls, { status: 'off' });
+        return;
+      }
+      setGeo(ls, { status: 'error' });
     }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
   }
 
@@ -514,6 +556,13 @@
 
   /* ---------- Kamera ---------- */
   async function openCamera() {
+    if (state.prefs.camera === 'system') { $('file-fallback').click(); return; }
+    var perm = await permState('camera');
+    if (perm === 'denied') {
+      toast('Kamera im Browser gesperrt. Es wird die Systemkamera genutzt.');
+      $('file-fallback').click();
+      return;
+    }
     var overlay = $('camera'), video = $('cam-video'), msg = $('cam-msg');
     msg.hidden = true;
     overlay.hidden = false;
@@ -531,7 +580,15 @@
       video.play().catch(function (e) { logError('Video starten', e); });
     } catch (e) {
       logError('Kamera', e);
-      msg.textContent = 'Kamera nicht erlaubt oder nicht verfügbar. Tippe unten links auf „Systemkamera nutzen“.';
+      if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) {
+        state.prefs.camera = 'system';
+        savePrefs();
+        overlay.hidden = true;
+        toast('Live-Kamera abgelehnt. Ab jetzt Systemkamera, ohne erneute Abfrage. Änderbar unter Gruppe.');
+        $('file-fallback').click();
+        return;
+      }
+      msg.textContent = 'Kamera nicht verfügbar. Tippe unten links auf „Systemkamera nutzen“.';
       msg.hidden = false;
     }
   }
@@ -931,6 +988,13 @@
     document.addEventListener('input', onLogField);
     document.addEventListener('change', function (e) {
       if (e.target.id === 'group-select') { setGroup(e.target.value); return; }
+      if (e.target.getAttribute && e.target.getAttribute('data-pref')) {
+        var k = e.target.getAttribute('data-pref');
+        state.prefs[k] = e.target.value;
+        savePrefs();
+        toast('Gespeichert.', 'good');
+        return;
+      }
       if (e.target.id === 'file-fallback') {
         var f = e.target.files && e.target.files[0];
         e.target.value = '';
