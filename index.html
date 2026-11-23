@@ -303,23 +303,26 @@ details.more form{margin-top:8px}
 .pod.p3 .pod-step{height:34px;background:linear-gradient(180deg,#b07a4a,#6b4526)}
 .pod small{color:var(--mut);font-size:12px}
 
-/* ---------- Hintergrund: Bar-Licht, Bläschen, Untersetzer-Ringe ---------- */
-#bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+/* ---------- Hintergrund: Club-Lichtkegel, Bokeh, Korn ---------- */
+#bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;--b1:rgba(212,175,55,.34);--b2:rgba(167,139,250,.32);--b3:rgba(244,232,200,.18)}
+body[data-scene=feed] #bg{--b1:rgba(167,139,250,.34);--b2:rgba(212,175,55,.24);--b3:rgba(167,139,250,.18)}
+body[data-scene=group] #bg{--b1:rgba(167,139,250,.32);--b2:rgba(212,175,55,.3);--b3:rgba(244,232,200,.16)}
 #screen-app,#screen-auth{position:relative;z-index:1}
-.rings{position:absolute;width:520px;height:520px;left:-210px;bottom:-130px;fill:none;stroke:var(--vio);stroke-width:1.2;opacity:.26}
-.rings circle:nth-child(2){opacity:.8}.rings circle:nth-child(3){opacity:.6}.rings circle:nth-child(4){opacity:.4}
-.wm{position:absolute;width:440px;height:440px;right:-110px;top:70px;transform:rotate(12deg);fill:none;stroke:var(--gold);stroke-width:.075;stroke-linecap:round;stroke-linejoin:round;opacity:0;transition:opacity .7s}
-.wm-rank{top:auto;bottom:110px;right:-120px;width:460px;height:460px}
-.wm-feed{right:auto;left:-130px;top:auto;bottom:30px;transform:rotate(-10deg)}
-.wm-group{top:auto;bottom:70px;right:-100px}
-.wm-auth{right:50%;margin-right:-220px;top:auto;bottom:-40px;transform:rotate(0)}
-body[data-scene=rank] .wm-rank,body[data-scene=feed] .wm-feed,body[data-scene=group] .wm-group,body[data-scene=auth] .wm-auth{opacity:.26}
-.bub{position:absolute;bottom:-40px;left:var(--x);width:var(--s);height:var(--s);border-radius:50%;border:1.5px solid rgba(212,175,55,.7);background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.28),rgba(212,175,55,.05) 65%);opacity:var(--o);animation:bubup var(--t) linear var(--d) infinite;will-change:transform}
-.bub.v{border-color:rgba(167,139,250,.75);background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.25),rgba(167,139,250,.06) 65%)}
-#bg::before{content:"";position:absolute;left:-20%;right:-20%;bottom:-12%;height:60%;background:radial-gradient(55% 70% at 50% 100%,rgba(212,175,55,.2),transparent 72%)}
-#bg::after{content:"";position:absolute;left:30%;right:-30%;top:-10%;height:45%;background:radial-gradient(55% 70% at 60% 0%,rgba(167,139,250,.22),transparent 72%)}
-@keyframes bubup{from{transform:translate(0,0)}to{transform:translate(var(--dx),-115vh)}}
-@media (prefers-reduced-motion:reduce){.bub{animation:none;bottom:20%}}
+#bg::before{content:"";position:absolute;left:-20%;right:-20%;bottom:-14%;height:55%;background:radial-gradient(55% 70% at 50% 100%,rgba(212,175,55,.22),transparent 72%)}
+.beam{position:absolute;top:-6%;left:-20vw;width:140vw;height:118vh;transform-origin:50% 0;filter:blur(30px);mix-blend-mode:screen;will-change:transform;opacity:.85;-webkit-mask-image:linear-gradient(to bottom,#000 0,rgba(0,0,0,.55) 45%,transparent 78%);mask-image:linear-gradient(to bottom,#000 0,rgba(0,0,0,.55) 45%,transparent 78%)}
+.beam.b1{background:conic-gradient(from 164deg at 50% 0%,transparent 0deg,var(--b1) 16deg,transparent 32deg,transparent 360deg);animation:sway1 19s ease-in-out infinite alternate}
+.beam.b2{background:conic-gradient(from 170deg at 50% 0%,transparent 0deg,var(--b2) 10deg,transparent 20deg,transparent 360deg);animation:sway2 23s ease-in-out infinite alternate}
+.beam.b3{background:conic-gradient(from 174deg at 50% 0%,transparent 0deg,var(--b3) 6deg,transparent 12deg,transparent 360deg);animation:sway3 29s ease-in-out infinite alternate}
+@keyframes sway1{from{transform:translateX(-22vw) rotate(-16deg)}to{transform:translateX(-6vw) rotate(9deg)}}
+@keyframes sway2{from{transform:translateX(24vw) rotate(14deg)}to{transform:translateX(6vw) rotate(-10deg)}}
+@keyframes sway3{from{transform:translateX(0) rotate(-6deg)}to{transform:translateX(0) rotate(12deg)}}
+.bk{position:absolute;left:var(--x);top:var(--y);width:var(--s);height:var(--s);border-radius:50%;filter:blur(var(--b));opacity:var(--o);animation:bkdrift var(--t) ease-in-out var(--d) infinite alternate;will-change:transform}
+.bk.g{background:radial-gradient(circle,rgba(212,175,55,.95),rgba(212,175,55,.35) 55%,transparent 72%)}
+.bk.v{background:radial-gradient(circle,rgba(167,139,250,.95),rgba(167,139,250,.35) 55%,transparent 72%)}
+.bk.w{background:radial-gradient(circle,rgba(255,244,214,.9),rgba(255,244,214,.3) 55%,transparent 72%)}
+@keyframes bkdrift{from{transform:translate(0,0) scale(1)}to{transform:translate(var(--dx),var(--dy)) scale(1.18)}}
+.grain{position:absolute;inset:0;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");background-size:160px;opacity:.07;mix-blend-mode:overlay}
+@media (prefers-reduced-motion:reduce){.beam,.bk{animation:none}}
 .top,.tabs{background:rgba(11,11,20,.72);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
 .card,.row,.post,.preview{background-color:rgba(20,20,32,.74)}
 .card,.row{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
@@ -354,29 +357,24 @@ body[data-scene=rank] .wm-rank,body[data-scene=feed] .wm-feed,body[data-scene=gr
 </svg>
 
 <div id="bg" aria-hidden="true">
-  <svg class="rings" viewBox="0 0 400 400"><circle cx="200" cy="200" r="190"/><circle cx="200" cy="200" r="150"/><circle cx="200" cy="200" r="110"/><circle cx="200" cy="200" r="70"/></svg>
-  <svg class="wm wm-rank" viewBox="0 0 24 24"><use href="#i-bier"></use></svg>
-  <svg class="wm wm-feed" viewBox="0 0 24 24"><use href="#i-cocktail"></use></svg>
-  <svg class="wm wm-group" viewBox="0 0 24 24"><use href="#i-wein"></use></svg>
-  <svg class="wm wm-auth" viewBox="0 0 24 24"><use href="#i-sekt"></use></svg>
-  <i class="bub v" style="--x:43%;--s:10px;--t:63s;--d:-6s;--dx:-31px;--o:0.53"></i>
-  <i class="bub" style="--x:14%;--s:12px;--t:41s;--d:-32s;--dx:-13px;--o:0.39"></i>
-  <i class="bub" style="--x:57%;--s:14px;--t:42s;--d:-15s;--dx:-29px;--o:0.48"></i>
-  <i class="bub v" style="--x:9%;--s:30px;--t:45s;--d:-14s;--dx:40px;--o:0.49"></i>
-  <i class="bub" style="--x:9%;--s:18px;--t:63s;--d:-6s;--dx:-12px;--o:0.39"></i>
-  <i class="bub" style="--x:19%;--s:12px;--t:64s;--d:-18s;--dx:29px;--o:0.4"></i>
-  <i class="bub v" style="--x:41%;--s:18px;--t:49s;--d:-6s;--dx:34px;--o:0.48"></i>
-  <i class="bub" style="--x:26%;--s:12px;--t:44s;--d:-35s;--dx:-32px;--o:0.48"></i>
-  <i class="bub" style="--x:81%;--s:10px;--t:69s;--d:-68s;--dx:14px;--o:0.52"></i>
-  <i class="bub v" style="--x:61%;--s:18px;--t:67s;--d:-46s;--dx:-2px;--o:0.42"></i>
-  <i class="bub" style="--x:25%;--s:24px;--t:53s;--d:-5s;--dx:33px;--o:0.43"></i>
-  <i class="bub" style="--x:65%;--s:12px;--t:66s;--d:-36s;--dx:37px;--o:0.56"></i>
-  <i class="bub v" style="--x:17%;--s:18px;--t:64s;--d:-21s;--dx:3px;--o:0.41"></i>
-  <i class="bub" style="--x:64%;--s:14px;--t:40s;--d:-4s;--dx:31px;--o:0.48"></i>
-  <i class="bub" style="--x:42%;--s:12px;--t:60s;--d:-38s;--dx:23px;--o:0.48"></i>
-  <i class="bub v" style="--x:60%;--s:8px;--t:43s;--d:-17s;--dx:20px;--o:0.51"></i>
-  <i class="bub" style="--x:10%;--s:8px;--t:57s;--d:-41s;--dx:33px;--o:0.56"></i>
-  <i class="bub" style="--x:59%;--s:12px;--t:62s;--d:-56s;--dx:4px;--o:0.38"></i>
+  <i class="beam b1"></i><i class="beam b2"></i><i class="beam b3"></i>
+  <i class="bk g" style="--x:57%;--y:75%;--s:72px;--t:54s;--d:-32s;--dx:25px;--dy:-36px;--o:0.13;--b:6px"></i>
+  <i class="bk g" style="--x:60%;--y:84%;--s:96px;--t:37s;--d:-6s;--dx:7px;--dy:-22px;--o:0.12;--b:6px"></i>
+  <i class="bk v" style="--x:88%;--y:85%;--s:28px;--t:51s;--d:-28s;--dx:33px;--dy:34px;--o:0.19;--b:1px"></i>
+  <i class="bk w" style="--x:79%;--y:5%;--s:96px;--t:30s;--d:-1s;--dx:-46px;--dy:-36px;--o:0.22;--b:6px"></i>
+  <i class="bk v" style="--x:3%;--y:63%;--s:56px;--t:54s;--d:-37s;--dx:-25px;--dy:6px;--o:0.13;--b:2px"></i>
+  <i class="bk g" style="--x:63%;--y:4%;--s:128px;--t:31s;--d:-29s;--dx:33px;--dy:-25px;--o:0.16;--b:6px"></i>
+  <i class="bk g" style="--x:10%;--y:36%;--s:56px;--t:40s;--d:-32s;--dx:-14px;--dy:-57px;--o:0.11;--b:0px"></i>
+  <i class="bk g" style="--x:51%;--y:17%;--s:56px;--t:50s;--d:-4s;--dx:-48px;--dy:48px;--o:0.2;--b:1px"></i>
+  <i class="bk v" style="--x:26%;--y:10%;--s:72px;--t:50s;--d:-45s;--dx:0px;--dy:-7px;--o:0.11;--b:1px"></i>
+  <i class="bk w" style="--x:86%;--y:38%;--s:56px;--t:31s;--d:-19s;--dx:-8px;--dy:-59px;--o:0.23;--b:0px"></i>
+  <i class="bk v" style="--x:17%;--y:35%;--s:128px;--t:32s;--d:0s;--dx:-43px;--dy:-1px;--o:0.21;--b:1px"></i>
+  <i class="bk g" style="--x:87%;--y:75%;--s:40px;--t:54s;--d:-32s;--dx:-26px;--dy:33px;--o:0.21;--b:4px"></i>
+  <i class="bk g" style="--x:82%;--y:53%;--s:28px;--t:51s;--d:-26s;--dx:-23px;--dy:-60px;--o:0.14;--b:6px"></i>
+  <i class="bk g" style="--x:38%;--y:6%;--s:40px;--t:37s;--d:-25s;--dx:27px;--dy:22px;--o:0.18;--b:0px"></i>
+  <i class="bk v" style="--x:18%;--y:31%;--s:72px;--t:42s;--d:0s;--dx:48px;--dy:18px;--o:0.15;--b:2px"></i>
+  <i class="bk w" style="--x:49%;--y:13%;--s:28px;--t:31s;--d:-13s;--dx:24px;--dy:21px;--o:0.13;--b:6px"></i>
+  <i class="grain"></i>
 </div>
 
 <div id="boot">Lädt…</div>
