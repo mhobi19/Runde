@@ -115,7 +115,22 @@
     } else if (rows.every(function (r) { return r.drinks === 0; })) {
       html += '<div class="empty">Noch keine Getränke in diesem Zeitraum.<br><span class="muted">Tippe unten auf das Plus.</span></div>';
     }
-    html += '<ol class="board">' + rows.map(function (r) {
+    var podium = rows.length >= 3 && rows[2].points > 0;
+    var listRows = podium ? rows.slice(3) : rows;
+    if (podium) {
+      var order = [rows[1], rows[0], rows[2]];
+      html += '<div class="podium">' + order.map(function (r) {
+        var me = r.user_id === state.uid;
+        return '<div class="pod p' + r.rank + (me ? ' me' : '') + '">' +
+          '<span class="av" style="--c:' + Logic.colorFor(r.user_id) + '">' + esc(Logic.initial(r.display_name)) + '</span>' +
+          '<span class="pod-name">' + esc(r.display_name) + (me ? '<em>du</em>' : '') + '</span>' +
+          '<span class="pod-pts">' + fmt(r.points) + '</span>' +
+          '<small>' + r.drinks + (r.drinks === 1 ? ' Getränk' : ' Getränke') + '</small>' +
+          '<span class="pod-step">' + r.rank + '</span>' +
+        '</div>';
+      }).join('') + '</div>';
+    }
+    html += '<ol class="board">' + listRows.map(function (r) {
       var me = r.user_id === state.uid;
       var medal = r.points > 0 && r.rank <= 3 ? ' p' + r.rank : '';
       return '<li class="row' + (me ? ' me' : '') + (r.rank === 1 && r.points > 0 ? ' first' : '') + '">' +
@@ -181,7 +196,7 @@
     return '<div class="mapwrap">' +
       '<div class="maptools">' + seg('map-period', 'period', [{ value: 'heute', label: 'Heute' }, { value: 'woche', label: 'Woche' }, { value: 'gesamt', label: 'Alle' }], state.mapPeriod) + '</div>' +
       '<div id="map" class="map" role="region" aria-label="Karte"></div>' +
-      '<p class="tiny muted center maphint">' + withLoc + ' Orte auf der Karte' + (without ? ' · ' + without + ' Getränke ohne Standort' : '') + '</p>' +
+      '<p class="tiny muted center maphint">' + withLoc + (withLoc === 1 ? ' Ort' : ' Orte') + ' auf der Karte' + (without ? ' · ' + without + (without === 1 ? ' Getränk' : ' Getränke') + ' ohne Standort' : '') + '</p>' +
     '</div>';
   }
 

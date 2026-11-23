@@ -409,7 +409,7 @@
         '<span class="mk-i">' + Logic.esc(Logic.initial(nm)) + '</span>' +
         (c.drinks.length > 1 ? '<i>' + c.drinks.length + '</i>' : '') + '</div>';
       var marker = window.L.marker([c.lat, c.lng], {
-        icon: window.L.divIcon({ className: '', html: html, iconSize: [48, 48], iconAnchor: [24, 24], popupAnchor: [0, -26] })
+        icon: window.L.divIcon({ className: '', html: html, iconSize: [56, 56], iconAnchor: [28, 28], popupAnchor: [0, -30] })
       });
       marker.bindPopup(Views.mapPopup(c, state), { maxWidth: 300 });
       marker.on('popupopen', function (e) { hydratePhotos(e.popup.getElement()); });
