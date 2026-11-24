@@ -121,25 +121,34 @@
       bootMessage('Einrichtung fehlt: Trage in config.js deine Supabase-URL und den Key ein (siehe SETUP.md).');
       return;
     }
-    if (!window.supabase || !window.supabase.createClient) {
+    var cache = readCache();
+    var libOk = !!(window.supabase && window.supabase.createClient);
+    if (!libOk && !cache) {
       bootMessage('Eine Bibliothek konnte nicht geladen werden. Bitte Internet prüfen und neu laden.');
       return;
     }
-    sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
-    });
     bindEvents();
-    try {
-      var res = await sb.auth.getSession();
-      state.session = res.data && res.data.session;
+    if (libOk) {
+      sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+      });
       sb.auth.onAuthStateChange(function (event, session) {
         state.session = session;
         if (event === 'SIGNED_OUT') { clearCache(); setTimeout(showAuth, 0); }
       });
-      var cache = readCache();
-      if (state.session) { await enterApp(); }
-      else if (navigator.onLine === false && cache) { await enterOffline(cache); }
-      else { showAuth(); }
+    }
+    try {
+      if (cache && (!libOk || navigator.onLine === false)) {
+        await enterOffline(cache);
+      } else {
+        var res = await Promise.race([
+          sb.auth.getSession(),
+          new Promise(function (_, rej) { setTimeout(function () { rej(new Error('Failed to fetch (Zeitüberschreitung)')); }, 6000); })
+        ]);
+        state.session = res.data && res.data.session;
+        if (state.session) { await enterApp(); }
+        else { showAuth(); }
+      }
     } catch (e) {
       logError('init', e);
       var c2 = readCache();
@@ -286,6 +295,7 @@
   }
 
   async function leaveOffline() {
+    if (!sb) { state.offline = true; return; }
     try {
       var r = await sb.auth.getSession();
       state.session = r.data && r.data.session;

@@ -1,12 +1,25 @@
 /* Runde – Service Worker: App-Dateien offline verfügbar halten, immer zuerst online prüfen. */
-var VERSION = 'runde-v2';
+var VERSION = 'runde-v3';
 var SHELL = [
   './', 'index.html', 'app.js', 'logic.js', 'views.js', 'queue.js', 'config.js',
   'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'
 ];
 
+var LIBS = [
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js',
+  'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js',
+  'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css'
+];
+
 self.addEventListener('install', function (e) {
-  e.waitUntil(caches.open(VERSION).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); }));
+  e.waitUntil(
+    caches.open(VERSION).then(function (c) {
+      var libs = Promise.all(LIBS.map(function (u) {
+        return fetch(u, { mode: 'no-cors' }).then(function (r) { return c.put(u, r); }).catch(function () { return null; });
+      }));
+      return Promise.all([c.addAll(SHELL), libs]);
+    }).then(function () { return self.skipWaiting(); })
+  );
 });
 
 self.addEventListener('activate', function (e) {
