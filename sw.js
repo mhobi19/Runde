@@ -1,5 +1,5 @@
 /* Runde – Service Worker: App-Dateien offline verfügbar halten, immer zuerst online prüfen. */
-var VERSION = 'runde-v4';
+var VERSION = 'runde-v5';
 var SHELL = [
   './', 'index.html', 'app.js', 'logic.js', 'views.js', 'queue.js', 'config.js',
   'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'

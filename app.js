@@ -18,7 +18,7 @@
     groups: [], group: null, members: [], drinks: [], board: [], mapDrinks: [],
     today: { points: 0, grams: 0, count: 0 },
     tab: 'rank', period: 'heute', mapPeriod: 'woche',
-    now: new Date(), authMode: 'login', log: null, loadToken: 0, prefs: null, adminOpen: false,
+    now: new Date(), authMode: 'login', log: null, loadToken: 0, prefs: null, adminOpen: false, manageOpen: false,
     pending: [], offline: false, rankMode: 'board', statsDrinks: null, statsError: null
   };
   var CACHE_KEY = 'runde_cache';
@@ -1222,6 +1222,7 @@
   function bindEvents() {
     document.addEventListener('toggle', function (e) {
       if (e.target && e.target.id === 'admin-fold') state.adminOpen = e.target.open;
+      if (e.target && e.target.id === 'manage-fold') state.manageOpen = e.target.open;
     }, true);
     document.addEventListener('click', function (e) {
       var t = e.target.closest ? e.target.closest('[data-action],[data-tab]') : null;

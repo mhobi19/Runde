@@ -209,10 +209,10 @@
 
   function badgesView(list) {
     var got = list.filter(function (b) { return b.earned; }).length;
-    return '<section class="sec"><h3>Abzeichen</h3><p class="tiny muted">' + got + ' von ' + list.length + ' geholt</p><ul class="badges">' + list.map(function (b) {
+    return '<section class="sec"><h3>Abzeichen</h3><p class="tiny muted">' + got + ' von ' + list.length + ' geholt</p><ul class="achs">' + list.map(function (b) {
       var prog = b.earned ? 'Geholt' : (b.target > 1 ? fmt(b.value) + ' von ' + b.target + (b.unit ? ' ' + b.unit : '') : 'Noch offen');
-      return '<li class="badge ' + (b.earned ? 'on' : 'off') + '"><span class="badge-ic">' + icon('b-' + b.key) + '</span>' +
-        '<b>' + esc(b.label) + '</b><span class="badge-d">' + esc(b.desc) + '</span><span class="badge-p">' + esc(prog) + '</span></li>';
+      return '<li class="ach ' + (b.earned ? 'on' : 'off') + '"><span class="ach-ic">' + icon('b-' + b.key) + '</span>' +
+        '<b>' + esc(b.label) + '</b><span class="ach-d">' + esc(b.desc) + '</span><span class="ach-p">' + esc(prog) + '</span></li>';
     }).join('') + '</ul></section>';
   }
 
@@ -345,6 +345,11 @@
   }
 
   /* ---------- Gruppe ---------- */
+  function ruleTile(label, value, unit) {
+    return '<div class="tile">' + (value === '' ? '<span class="tile-v off">Kein Limit</span>' : '<span class="tile-v">' + esc(value) + (unit ? '<small>' + esc(unit) + '</small>' : '') + '</span>') +
+      '<span class="tile-l">' + esc(label) + '</span></div>';
+  }
+
   function groupView(state) {
     var g = state.group;
     var isAdmin = g.role === 'admin';
@@ -355,66 +360,80 @@
     });
     var lpTxt = g.daily_limit == null ? '' : fmt(g.daily_limit);
     var lgTxt = g.alcohol_limit_g == null ? '' : fmt(g.alcohol_limit_g);
-    var limits = isAdmin
-      ? '<form id="limits-form" class="limits-form" novalidate>' +
+    var prefs = state.prefs || { camera: 'auto', geo: 'auto' };
+
+    var code = '<div class="ticket">' +
+      '<div class="ticket-l">Einladungscode</div>' +
+      '<div class="code">' + String(g.invite_code).split('').map(function (c) { return '<span>' + esc(c) + '</span>'; }).join('') + '</div>' +
+      '<div class="row-btns">' +
+        '<button class="btn" data-action="copy-code">' + icon('copy') + 'Kopieren</button>' +
+        '<button class="btn" data-action="share-code">' + icon('share') + 'Teilen</button>' +
+      '</div>' +
+      '<p class="tiny muted">Wer den Code hat, sieht Fotos und Orte der Gruppe. Gib ihn nur an Freunde.</p>' +
+    '</div>';
+
+    var memberList = '<div class="mcard"><ul class="members">' + members.map(function (m) {
+      var n = m.profiles ? m.profiles.display_name : '?';
+      return '<li><span class="av sm" style="--c:' + Logic.colorFor(m.user_id) + '">' + esc(Logic.initial(n)) + '</span>' +
+        '<span class="m-name">' + esc(n) + (m.user_id === state.uid ? ' <em>du</em>' : '') + '</span>' +
+        (m.role === 'admin' ? '<span class="badge admin">' + icon('b-sieger') + 'Admin</span>' : '') +
+        (isAdmin && m.user_id !== state.uid ? '<button class="icon-btn" data-action="kick" data-user="' + esc(m.user_id) + '" data-name="' + esc(n) + '" aria-label="' + esc(n) + ' entfernen">' + icon('x') + '</button>' : '') + '</li>';
+    }).join('') + '</ul></div>';
+
+    var rules = '<div class="tiles">' + ruleTile('Punkte pro Abend', lpTxt) + ruleTile('Alkohol pro Abend', lgTxt, lgTxt ? 'g' : '') + '</div>';
+    var rulesBody = rules;
+    if (isAdmin) {
+      rulesBody += '<details class="fold" id="admin-fold"' + (state.adminOpen ? ' open' : '') + '><summary>Limits ändern</summary>' +
+        '<form id="limits-form" class="limits-form" novalidate>' +
           '<label>Punkte-Limit pro Abend<input name="points" type="text" inputmode="decimal" value="' + esc(lpTxt) + '" placeholder="kein Limit"></label>' +
           '<label>Alkohol-Obergrenze in g Reinalkohol<input name="grams" type="text" inputmode="decimal" value="' + esc(lgTxt) + '" placeholder="kein Limit"></label>' +
           '<p class="tiny muted">Frei wählbar. Feld leer lassen = kein Limit.</p>' +
           '<button class="btn" type="submit">Limits speichern</button>' +
-        '</form>'
-      : '<p class="muted">Punkte-Limit: ' + (lpTxt ? esc(lpTxt) + ' pro Abend' : 'keins') + ' · Alkohol-Obergrenze: ' + (lgTxt ? esc(lgTxt) + ' g' : 'keine') + '. Nur Admins ändern das.</p>';
-    var prefs = state.prefs || { camera: 'auto', geo: 'auto' };
-    var memberList = '<ul class="members">' + members.map(function (m) {
-      var n = m.profiles ? m.profiles.display_name : '?';
-      return '<li><span class="av sm" style="--c:' + Logic.colorFor(m.user_id) + '">' + esc(Logic.initial(n)) + '</span><span class="m-name">' + esc(n) + (m.user_id === state.uid ? ' <em>du</em>' : '') + '</span>' + (m.role === 'admin' ? '<span class="badge">Admin</span>' : '') +
-        (isAdmin && m.user_id !== state.uid ? '<button class="icon-btn" data-action="kick" data-user="' + esc(m.user_id) + '" data-name="' + esc(n) + '" aria-label="' + esc(n) + ' entfernen">' + icon('x') + '</button>' : '') + '</li>';
-    }).join('') + '</ul>';
-    var adminBox = isAdmin
-      ? '<details class="fold" id="admin-fold"' + (state.adminOpen ? ' open' : '') + '><summary>Einstellungen für Admins</summary>' +
-          '<h4>Limits pro Abend</h4>' + limits +
-          '<p class="tiny muted">Punkte: Alkoholgehalt ÷ 5 pro Standardportion (Pils 0,5 l = 1, Vodka 4 cl = 8, Radler 0,5 l = 0,1). Der Abend wechselt um 6 Uhr morgens.</p>' +
-          '<h4>Gruppe verwalten</h4>' +
-          '<p class="tiny muted">Nur du kannst Limits ändern, Mitglieder entfernen und die Gruppe löschen. Nach einem Rauswurf: neuen Code erzeugen, sonst kommt die Person mit dem alten Code wieder rein.</p>' +
+        '</form></details>';
+    } else {
+      rulesBody += '<p class="tiny muted">Nur Admins ändern die Limits.</p>';
+    }
+    rulesBody += '<details class="fold"><summary>So zählen die Punkte</summary>' +
+      '<p class="tiny muted">Alkoholgehalt geteilt durch 5, pro Standardportion: Pils 0,5 l = 1, Vodka 4 cl = 8, Radler 0,5 l = 0,1. Ab Limit gibt es keine Punkte mehr. Der Abend wechselt um 6 Uhr morgens.</p></details>';
+
+    var manage = isAdmin
+      ? '<details class="fold danger-zone" id="manage-fold"' + (state.manageOpen ? ' open' : '') + '><summary>Gruppe verwalten</summary>' +
+          '<p class="tiny muted">Nur du kannst Mitglieder entfernen und die Gruppe löschen. Nach einem Rauswurf: neuen Code erzeugen, sonst kommt die Person mit dem alten Code wieder rein.</p>' +
           '<button class="btn wide" data-action="reset-code">Neuen Einladungscode erzeugen</button>' +
           '<button class="btn danger wide" data-action="delete-group">Gruppe löschen</button>' +
         '</details>'
-      : '<section class="sec"><h3>Limits</h3>' + limits +
-          '<button class="btn danger wide" data-action="leave-group">Gruppe verlassen</button>' +
-          '<p class="tiny muted">Beim Austreten werden deine Getränke und Fotos in dieser Gruppe gelöscht.</p></section>';
+      : '<div class="leave"><button class="btn danger wide" data-action="leave-group">Gruppe verlassen</button>' +
+          '<p class="tiny muted">Beim Austreten werden deine Getränke und Fotos in dieser Gruppe gelöscht.</p></div>';
+
     return '' +
       '<div class="stack group-view">' +
-        '<div class="card invite">' +
-          '<div class="invite-l">Einladungscode</div>' +
-          '<div class="code">' + esc(g.invite_code) + '</div>' +
-          '<div class="row-btns">' +
-            '<button class="btn" data-action="copy-code">' + icon('copy') + 'Kopieren</button>' +
-            '<button class="btn" data-action="share-code">' + icon('share') + 'Teilen</button>' +
-          '</div>' +
-          '<p class="tiny muted">Wer den Code hat, kann beitreten und sieht Fotos und Orte der Gruppe. Gib ihn nur an Freunde.</p>' +
-        '</div>' +
-        '<section class="sec"><h3>Mitglieder <span class="count">' + members.length + '</span></h3>' + memberList + '</section>' +
-        adminBox +
-        '<section class="sec"><h3>Mein Name</h3>' +
+        code +
+        '<section class="gsec"><h3>Mitglieder <span class="count">' + members.length + '</span></h3>' + memberList + '</section>' +
+        '<section class="gsec"><h3>Limits für den Abend</h3>' + rulesBody + '</section>' +
+        '<section class="gsec"><h3>Dein Profil</h3>' +
           '<form id="rename-form" class="inline-form" novalidate>' +
             '<input name="name" type="text" maxlength="24" value="' + esc(state.profile ? state.profile.display_name : '') + '" aria-label="Mein Name">' +
             '<button class="btn" type="submit">Ändern</button>' +
           '</form>' +
+          '<details class="fold"><summary>Dieses Gerät</summary>' +
+            '<label>Kamera<select data-pref="camera"><option value="auto"' + (prefs.camera === 'system' ? '' : ' selected') + '>Live-Kamera in der App</option><option value="system"' + (prefs.camera === 'system' ? ' selected' : '') + '>Systemkamera, ohne Abfrage</option></select></label>' +
+            '<label>Standort<select data-pref="geo"><option value="auto"' + (prefs.geo === 'off' ? '' : ' selected') + '>Automatisch erfassen</option><option value="off"' + (prefs.geo === 'off' ? ' selected' : '') + '>Aus</option></select></label>' +
+            '<p class="tiny muted">Bei der Abfrage „Erlauben“ wählen, nicht „Einmal“. Dann merkt sich der Browser es. iPhone: Einstellungen → Safari → Kamera und Standort → Erlauben. Wurde abgelehnt, nutzt die App die Systemkamera.</p>' +
+          '</details>' +
         '</section>' +
-        '<section class="sec"><h3>Dieses Gerät</h3>' +
-          '<label>Kamera<select data-pref="camera"><option value="auto"' + (prefs.camera === 'system' ? '' : ' selected') + '>Live-Kamera in der App</option><option value="system"' + (prefs.camera === 'system' ? ' selected' : '') + '>Systemkamera, ohne Abfrage</option></select></label>' +
-          '<label>Standort<select data-pref="geo"><option value="auto"' + (prefs.geo === 'off' ? '' : ' selected') + '>Automatisch erfassen</option><option value="off"' + (prefs.geo === 'off' ? ' selected' : '') + '>Aus</option></select></label>' +
-          '<p class="tiny muted">Frage nur beim ersten Mal „Erlauben“ wählen, nicht „Einmal“. Dann merkt sich der Browser es. iPhone: Einstellungen → Safari → Kamera und Standort → Erlauben. Wurde abgelehnt, nutzt die App die Systemkamera und fragt nicht erneut.</p>' +
+        '<section class="gsec"><h3>Weitere Gruppen</h3>' +
+          '<details class="fold"><summary>Beitreten oder erstellen</summary>' +
+            '<form id="join-form" class="inline-form" novalidate>' +
+              '<input name="code" type="text" maxlength="12" autocapitalize="characters" autocomplete="off" placeholder="Code" aria-label="Einladungscode">' +
+              '<button class="btn" type="submit">Beitreten</button>' +
+            '</form>' +
+            '<form id="create-form" class="inline-form" novalidate>' +
+              '<input name="name" type="text" maxlength="40" placeholder="Neuer Gruppenname" aria-label="Gruppenname">' +
+              '<button class="btn" type="submit">Erstellen</button>' +
+            '</form>' +
+          '</details>' +
         '</section>' +
-        '<details class="fold"><summary>Weitere Gruppe beitreten oder erstellen</summary>' +
-          '<form id="join-form" class="inline-form" novalidate>' +
-            '<input name="code" type="text" maxlength="12" autocapitalize="characters" autocomplete="off" placeholder="Code" aria-label="Einladungscode">' +
-            '<button class="btn" type="submit">Beitreten</button>' +
-          '</form>' +
-          '<form id="create-form" class="inline-form" novalidate>' +
-            '<input name="name" type="text" maxlength="40" placeholder="Neuer Gruppenname" aria-label="Gruppenname">' +
-            '<button class="btn" type="submit">Erstellen</button>' +
-          '</form>' +
-        '</details>' +
+        manage +
         '<p class="msg" id="group-msg" role="alert"></p>' +
         '<button class="btn ghost wide" data-action="logout">Abmelden</button>' +
         '<p class="tiny muted center">Trinkt verantwortungsvoll. Im Notfall: 112.</p>' +
