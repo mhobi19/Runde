@@ -104,6 +104,7 @@
       '<div class="card-title">Dein Abend</div>' +
       '<div class="tonight-body">' + ring(t.points, lp) + '<div class="tonight-side">' + alc + cnt + '</div></div>' +
       ((lp != null || lg != null) ? '<p class="tiny muted">Ab Limit gibt es keine Punkte mehr. Wasser, Essen, Pausen.</p>' : '') +
+      '<button type="button" class="linkbtn" data-action="open-heimweg">' + icon('map') + 'Heimweg-Check</button>' +
     '</div>';
   }
 
@@ -201,7 +202,40 @@
           (st.records.mostPoints ? '<p class="rec"><span class="muted">Meiste Punkte an einem Abend</span><b>' + esc(nameOf(state, st.records.mostPoints.user_id)) + ': ' + esc(fmt(st.records.mostPoints.points)) + '</b><span class="muted">am ' + esc(shortDay(st.records.mostPoints.day)) + '</span></p>' : '') +
           (g.favorite ? '<p class="rec"><span class="muted">Beliebtestes Getränk</span><b>' + esc(g.favorite.name) + '</b><span class="muted">' + g.favorite.count + 'x</span></p>' : '')
         : '<p class="muted">In diesem Zeitraum gibt es noch keine Getränke.</p>') +
-      '</section></div>';
+      '</section>';
+    html += badgesView(Logic.computeBadges(state.statsDrinks, state.uid, (state.members || []).length || 1, state.now || new Date()));
+    return html + '</div>';
+  }
+
+  function badgesView(list) {
+    var got = list.filter(function (b) { return b.earned; }).length;
+    return '<section class="sec"><h3>Abzeichen</h3><p class="tiny muted">' + got + ' von ' + list.length + ' geholt</p><ul class="badges">' + list.map(function (b) {
+      var prog = b.earned ? 'Geholt' : (b.target > 1 ? fmt(b.value) + ' von ' + b.target + (b.unit ? ' ' + b.unit : '') : 'Noch offen');
+      return '<li class="badge ' + (b.earned ? 'on' : 'off') + '"><span class="badge-ic">' + icon('b-' + b.key) + '</span>' +
+        '<b>' + esc(b.label) + '</b><span class="badge-d">' + esc(b.desc) + '</span><span class="badge-p">' + esc(prog) + '</span></li>';
+    }).join('') + '</ul></section>';
+  }
+
+  /* ---------- Heimweg-Check ---------- */
+  function heimwegView(info) {
+    var g = Number(info.grams) || 0;
+    var lead = g > 0 ? 'Du hast heute ' + fmt(g) + ' g reinen Alkohol getrunken.' : 'Heute ist noch kein Alkohol eingetragen.';
+    var items = [
+      ['glass', 'Trink ein Glas Wasser und iss etwas.'],
+      ['map', 'Kläre deinen Heimweg: Taxi, Bahn oder jemand holt dich. Kein Auto, kein Fahrrad.'],
+      ['users', 'Sag jemandem aus der Gruppe, dass du losgehst.']
+    ];
+    var html = '<div class="sheet-card" role="dialog" aria-label="Heimweg-Check">' +
+      '<header class="sheet-head"><h2>Heimweg-Check</h2><button class="icon-btn" data-action="close-sheet" aria-label="Schließen">' + icon('x') + '</button></header>' +
+      '<div class="sheet-body"><p class="lead">' + esc(lead) + '</p>' +
+      '<ul class="checks">' + items.map(function (i) { return '<li>' + icon(i[0]) + '<span>' + esc(i[1]) + '</span></li>'; }).join('') + '</ul>';
+    if (info.level >= 2) {
+      html += '<div class="alert"><b>Das ist sehr viel Alkohol.</b><span>Bleib nicht allein und lass dich nicht allein nach Hause gehen. Bei Bewusstlosigkeit oder Atemproblemen: sofort 112 rufen, stabile Seitenlage.</span></div>';
+    } else {
+      html += '<p class="tiny muted">Bei Bewusstlosigkeit oder Atemproblemen: sofort 112 rufen, stabile Seitenlage.</p>';
+    }
+    html += '<p class="tiny muted">Das ist keine Promille-Messung und kein Freibrief zum Fahren.</p></div>' +
+      '<footer class="sheet-foot row-btns"><a class="btn danger" href="tel:112">Notruf 112</a><button class="btn primary" data-action="close-sheet">Alles klar</button></footer></div>';
     return html;
   }
 
@@ -490,6 +524,8 @@
     noGroupView: noGroupView,
     rankView: rankView,
     statsView: statsView,
+    badgesView: badgesView,
+    heimwegView: heimwegView,
     pendingBar: pendingBar,
     pendingCard: pendingCard,
     feedView: feedView,

@@ -253,6 +253,86 @@
     return typeof navigator !== 'undefined' && navigator.onLine === false && !e.code;
   }
 
+  function haversineKm(a, b) {
+    var R = 6371, rad = Math.PI / 180;
+    var dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+
+  var BADGE_DEFS = [
+    { key: 'erster', label: 'Erster Schluck', desc: 'Das erste Getränk eintragen.', target: 1 },
+    { key: 'zehner', label: 'Zehnerpack', desc: '10 Getränke insgesamt.', target: 10 },
+    { key: 'hundert', label: 'Hundert', desc: '100 Punkte insgesamt.', target: 100 },
+    { key: 'allrounder', label: 'Allrounder', desc: '4 verschiedene Getränkearten.', target: 4 },
+    { key: 'serie', label: 'Dranbleiber', desc: '3 Abende hintereinander dabei.', target: 3 },
+    { key: 'nachteule', label: 'Nachteule', desc: 'Ein Getränk zwischen 2 und 5 Uhr nachts.', target: 1 },
+    { key: 'weltenbummler', label: 'Weltenbummler', desc: 'Getränke an Orten mindestens 5 km auseinander.', target: 5, unit: 'km' },
+    { key: 'sieger', label: 'Abendsieger', desc: 'Einen Abend mit den meisten Punkten der Gruppe gewinnen.', target: 1 }
+  ];
+
+  function computeBadges(drinks, uid, memberCount, now) {
+    var today = partyDay(now || new Date());
+    var valid = (drinks || []).filter(function (d) { return !isDisputed((d.drink_flags || []).length, memberCount || 1); });
+    var mine = valid.filter(function (d) { return d.user_id === uid; });
+    var points = 0, cats = {}, days = {}, owl = false, spots = [];
+    mine.forEach(function (d) {
+      points += Number(d.points) || 0;
+      cats[d.category] = true;
+      days[d.party_day] = true;
+      if (d.created_at) {
+        var h = new Date(d.created_at).getHours();
+        if (h >= 2 && h < 5) owl = true;
+      }
+      if (d.lat != null && d.lng != null && isFinite(d.lat) && isFinite(d.lng) && spots.length < 300) spots.push({ lat: Number(d.lat), lng: Number(d.lng) });
+    });
+    var dayList = Object.keys(days).sort();
+    var best = 0, run = 0;
+    for (var i = 0; i < dayList.length; i++) {
+      run = (i > 0 && dayShift(dayList[i - 1], 1) === dayList[i]) ? run + 1 : 1;
+      if (run > best) best = run;
+    }
+    var far = 0;
+    for (var a = 0; a < spots.length; a++) {
+      for (var b = a + 1; b < spots.length; b++) {
+        var km = haversineKm(spots[a], spots[b]);
+        if (km > far) far = km;
+      }
+    }
+    var perDay = {};
+    valid.forEach(function (d) {
+      if (d.party_day >= today) return;
+      var o = perDay[d.party_day] || (perDay[d.party_day] = {});
+      o[d.user_id] = (o[d.user_id] || 0) + (Number(d.points) || 0);
+    });
+    var wins = 0;
+    Object.keys(perDay).forEach(function (day) {
+      var users = Object.keys(perDay[day]);
+      if (users.length < 2) return;
+      var top = 0;
+      users.forEach(function (u) { if (perDay[day][u] > top) top = perDay[day][u]; });
+      if (top > 0 && perDay[day][uid] === top) wins++;
+    });
+    var values = {
+      erster: mine.length ? 1 : 0, zehner: mine.length, hundert: round1(points), allrounder: Object.keys(cats).length,
+      serie: best, nachteule: owl ? 1 : 0, weltenbummler: round1(far), sieger: wins
+    };
+    return BADGE_DEFS.map(function (def) {
+      var v = values[def.key];
+      return { key: def.key, label: def.label, desc: def.desc, unit: def.unit || '', target: def.target, value: Math.min(v, def.target), earned: v >= def.target };
+    });
+  }
+
+  function heimwegLevel(grams, limitG) {
+    var g = Number(grams) || 0;
+    var lim = limitG == null || limitG === '' ? null : Number(limitG);
+    var base = lim && lim > 0 ? Math.min(80, lim * 0.7) : 80;
+    if (g >= base * 1.75) return 2;
+    if (g >= base) return 1;
+    return 0;
+  }
+
   function dayShift(day, n) {
     var p = String(day).split('-');
     var d = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2]) + n));
@@ -339,6 +419,9 @@
     isNetworkError: isNetworkError,
     dayShift: dayShift,
     computeStats: computeStats,
+    computeBadges: computeBadges,
+    heimwegLevel: heimwegLevel,
+    BADGE_DEFS: BADGE_DEFS,
     alcoholGrams: alcoholGrams,
     awardPoints: awardPoints,
     partyDay: partyDay,

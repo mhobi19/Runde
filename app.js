@@ -379,6 +379,58 @@
     }
   }
 
+  /* ---------- Heimweg-Check ---------- */
+  var HEIMWEG_KEY = 'runde_heimweg';
+
+  async function tonightGrams() {
+    var day = Logic.partyDay(new Date());
+    var g = null;
+    if (!state.offline && sb) {
+      try {
+        var r = await sb.from('drinks').select('alcohol_g,party_day,user_id').eq('user_id', state.uid).eq('party_day', day);
+        if (r.error) throw r.error;
+        g = Logic.usageToday(r.data || [], state.uid, day).grams;
+      } catch (e) { logError('Heimweg-Check: Alkohol heute', e); }
+    }
+    if (g == null) g = state.today ? state.today.grams : 0;
+    (state.pending || []).forEach(function (i) {
+      if (i.userId === state.uid && i.partyDay === day && !i.failed) g += Logic.alcoholGrams(i.drink.abv, i.drink.volume_ml);
+    });
+    return Math.round(g * 10) / 10;
+  }
+
+  function showHeimweg(grams, level) {
+    state.log = null;
+    var s = $('sheet');
+    s.innerHTML = Views.heimwegView({ grams: grams, level: level });
+    s.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+
+  async function maybeHeimweg() {
+    if (!state.group || state.log) return;
+    var grams = await tonightGrams();
+    var level = Logic.heimwegLevel(grams, state.group.alcohol_limit_g);
+    if (!level) return;
+    var day = Logic.partyDay(new Date());
+    var seen = 0;
+    try {
+      var raw = localStorage.getItem(HEIMWEG_KEY);
+      var o = raw ? JSON.parse(raw) : null;
+      if (o && o.day === day) seen = Number(o.level) || 0;
+    } catch (e) { logError('Heimweg-Check lesen', e); }
+    if (level <= seen) return;
+    try { localStorage.setItem(HEIMWEG_KEY, JSON.stringify({ day: day, level: level })); }
+    catch (e) { logError('Heimweg-Check speichern', e); }
+    if (state.log) return;
+    showHeimweg(grams, level);
+  }
+
+  async function openHeimweg() {
+    var grams = await tonightGrams();
+    showHeimweg(grams, Math.max(1, Logic.heimwegLevel(grams, state.group && state.group.alcohol_limit_g)));
+  }
+
   /* ---------- Statistik ---------- */
   async function loadStats() {
     if (!state.group || state.offline) return;
@@ -387,7 +439,7 @@
     state.statsError = null;
     try {
       for (var from = 0; from < 5000; from += 1000) {
-        var r = await sb.from('drinks').select('user_id,party_day,category,name,points,alcohol_g,drink_flags(user_id)')
+        var r = await sb.from('drinks').select('user_id,party_day,category,name,points,alcohol_g,created_at,lat,lng,drink_flags(user_id)')
           .eq('group_id', gid).order('created_at', { ascending: false }).range(from, from + 999);
         if (r.error) throw r.error;
         all = all.concat(r.data || []);
@@ -902,6 +954,7 @@
         toast('+' + Logic.fmt(res.points) + ' Punkte', 'good');
       }
       await refreshGroupData(false);
+      maybeHeimweg();
     } catch (e) {
       if (Logic.isNetworkError(e)) {
         try {
@@ -910,6 +963,7 @@
           await refreshPending();
           render(false);
           toast('Kein Netz. Das Getränk ist auf deinem Gerät gespeichert und wird gesendet, sobald du online bist.', 'good', 6000);
+          maybeHeimweg();
           return;
         } catch (qe) {
           logError('Offline speichern', qe);
@@ -991,6 +1045,7 @@
     },
     'reload-stats': function () { state.statsError = null; state.statsDrinks = null; render(true); loadStats(); },
     'flush-queue': function () { flushQueue(true); },
+    'open-heimweg': function () { openHeimweg(); },
     'retry-pending': async function (t) {
       var id = t.getAttribute('data-id');
       try {
