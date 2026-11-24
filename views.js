@@ -220,7 +220,8 @@
     }
     failed.forEach(function (i) {
       html += '<div class="pbar bad"><div><b>' + esc(i.drink.name) + ' konnte nicht gesendet werden</b><small>' + esc(i.failed) + '</small></div>' +
-        '<button type="button" class="btn sm" data-action="discard-pending" data-id="' + esc(i.id) + '">Verwerfen</button></div>';
+        '<div class="pbtns"><button type="button" class="btn sm" data-action="retry-pending" data-id="' + esc(i.id) + '">Erneut senden</button>' +
+        '<button type="button" class="btn sm" data-action="discard-pending" data-id="' + esc(i.id) + '">Verwerfen</button></div></div>';
     });
     return html;
   }

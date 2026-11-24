@@ -355,6 +355,11 @@
           if (res.capped) capped++;
         } catch (e) {
           if (Logic.isNetworkError(e)) { logError('Warteschlange: kein Netz', e); break; }
+          if (/could not find the function|schema cache|PGRST20/i.test(String((e && e.message) || '') + String((e && e.code) || ''))) {
+            logError('Warteschlange: Datenbank-Update fehlt', e);
+            if (manual) toast('Die Datenbank ist noch nicht aktualisiert (migration_paket3.sql). Das Getränk bleibt gespeichert.', 'bad', 6000);
+            break;
+          }
           logError('Warteschlange: Getränk abgelehnt', e);
           item.failed = humanError(e);
           await window.RundeQueue.update(item);
@@ -986,6 +991,16 @@
     },
     'reload-stats': function () { state.statsError = null; state.statsDrinks = null; render(true); loadStats(); },
     'flush-queue': function () { flushQueue(true); },
+    'retry-pending': async function (t) {
+      var id = t.getAttribute('data-id');
+      try {
+        var all = await window.RundeQueue.all();
+        var it = all.filter(function (x) { return x.id === id; })[0];
+        if (it) { delete it.failed; await window.RundeQueue.update(it); }
+      } catch (e) { logError('Erneut senden', e); toast('Konnte nicht erneut gesendet werden.', 'bad'); return; }
+      await refreshPending();
+      await flushQueue(true);
+    },
     'discard-pending': async function (t) {
       if (!window.confirm('Dieses Getränk samt Foto verwerfen? Es zählt dann nicht.')) return;
       try { await window.RundeQueue.remove(t.getAttribute('data-id')); }

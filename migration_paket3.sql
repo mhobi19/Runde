@@ -126,3 +126,5 @@ $$;
 
 revoke all on function public.log_drink(uuid, text, text, numeric, integer, date, text, double precision, double precision, timestamptz) from public, anon;
 grant execute on function public.log_drink(uuid, text, text, numeric, integer, date, text, double precision, double precision, timestamptz) to authenticated;
+
+notify pgrst, 'reload schema';
