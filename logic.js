@@ -324,6 +324,13 @@
     });
   }
 
+  function installMode(env) {
+    if (!env || env.standalone) return 'none';
+    if (env.hasPrompt) return 'prompt';
+    var ios = /iPhone|iPad|iPod/i.test(String(env.ua || '')) || (env.platform === 'MacIntel' && Number(env.touchPoints) > 1);
+    return ios ? 'ios' : 'none';
+  }
+
   function heimwegLevel(grams, limitG) {
     var g = Number(grams) || 0;
     var lim = limitG == null || limitG === '' ? null : Number(limitG);
@@ -421,6 +428,7 @@
     computeStats: computeStats,
     computeBadges: computeBadges,
     heimwegLevel: heimwegLevel,
+    installMode: installMode,
     BADGE_DEFS: BADGE_DEFS,
     alcoholGrams: alcoholGrams,
     awardPoints: awardPoints,

@@ -216,6 +216,40 @@
     }).join('') + '</ul></section>';
   }
 
+  /* ---------- App installieren ---------- */
+  function installSteps(mode) {
+    if (mode === 'prompt') {
+      return '<p class="muted">Runde bekommt ein eigenes Icon und startet im Vollbild, ohne Browserleiste.</p>' +
+        '<button class="btn primary wide" data-action="open-install">Jetzt installieren</button>';
+    }
+    var steps = [
+      ['share', 'Öffne die Seite in Safari und tippe auf das Teilen-Symbol.'],
+      ['plus', 'Wähle „Zum Home-Bildschirm“.'],
+      ['check', 'Tippe oben rechts auf „Hinzufügen“.'],
+      ['glass', 'Öffne Runde ab jetzt über das Icon.']
+    ];
+    return '<ol class="isteps">' + steps.map(function (s) {
+      return '<li>' + icon(s[0]) + '<span>' + esc(s[1]) + '</span></li>';
+    }).join('') + '</ol>' +
+      '<p class="tiny muted">Safari kann gespeicherte Offline-Daten löschen, wenn du die Seite eine Woche lang nicht öffnest. Als App bleiben sie erhalten.</p>';
+  }
+
+  function installBanner(state) {
+    if (!state.installBanner) return '';
+    var prompt = state.installMode === 'prompt';
+    return '<div class="pbar inst"><div><b>Als App installieren</b><small>' +
+      (prompt ? 'Eigenes Icon und Vollbild, ohne Browserleiste.' : 'Vollbild, eigenes Icon, Offline-Daten bleiben erhalten.') + '</small></div>' +
+      '<div class="pbtns"><button type="button" class="btn sm" data-action="open-install">' + (prompt ? 'Installieren' : 'So geht’s') + '</button>' +
+      '<button type="button" class="btn sm ghost" data-action="dismiss-install">Ausblenden</button></div></div>';
+  }
+
+  function installSheet(mode) {
+    return '<div class="sheet-card" role="dialog" aria-label="Als App installieren">' +
+      '<header class="sheet-head"><h2>Als App installieren</h2><button class="icon-btn" data-action="close-sheet" aria-label="Schließen">' + icon('x') + '</button></header>' +
+      '<div class="sheet-body">' + installSteps(mode) + '</div>' +
+      '<footer class="sheet-foot"><button class="btn primary wide" data-action="close-sheet">Verstanden</button></footer></div>';
+  }
+
   /* ---------- Heimweg-Check ---------- */
   function heimwegView(info) {
     var g = Number(info.grams) || 0;
@@ -421,6 +455,7 @@
             '<p class="tiny muted">Bei der Abfrage „Erlauben“ wählen, nicht „Einmal“. Dann merkt sich der Browser es. iPhone: Einstellungen → Safari → Kamera und Standort → Erlauben. Wurde abgelehnt, nutzt die App die Systemkamera.</p>' +
           '</details>' +
         '</section>' +
+        (state.installMode && state.installMode !== 'none' ? '<section class="gsec"><h3>App</h3><details class="fold"><summary>Als App installieren</summary>' + installSteps(state.installMode) + '</details></section>' : '') +
         '<section class="gsec"><h3>Weitere Gruppen</h3>' +
           '<details class="fold"><summary>Beitreten oder erstellen</summary>' +
             '<form id="join-form" class="inline-form" novalidate>' +
@@ -545,6 +580,8 @@
     statsView: statsView,
     badgesView: badgesView,
     heimwegView: heimwegView,
+    installBanner: installBanner,
+    installSheet: installSheet,
     pendingBar: pendingBar,
     pendingCard: pendingCard,
     feedView: feedView,

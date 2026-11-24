@@ -155,6 +155,12 @@
       if (c2 && Logic.isNetworkError(e)) { await enterOffline(c2); }
       else { showAuth(); setMsg('auth-msg', humanError(e)); }
     }
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      deferredInstall = e;
+      if (state.group && state.tab === 'rank' && !state.log) render(true);
+    });
+    window.addEventListener('appinstalled', function () { deferredInstall = null; dismissInstall(); if (state.group) render(true); });
     window.addEventListener('online', function () {
       if (state.offline) leaveOffline().then(function () { flushQueue(false); });
       else flushQueue(false);
@@ -381,6 +387,25 @@
 
   /* ---------- Heimweg-Check ---------- */
   var HEIMWEG_KEY = 'runde_heimweg';
+  var INSTALL_KEY = 'runde_install';
+  var deferredInstall = null;
+
+  function refreshInstall() {
+    var standalone = false;
+    try { standalone = navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches); }
+    catch (e) { logError('Installations-Check', e); }
+    state.installMode = Logic.installMode({
+      standalone: standalone, ua: navigator.userAgent, platform: navigator.platform,
+      touchPoints: navigator.maxTouchPoints, hasPrompt: !!deferredInstall
+    });
+    var dismissed = false;
+    try { dismissed = localStorage.getItem(INSTALL_KEY) === 'dismissed'; } catch (e) { logError('Installations-Hinweis lesen', e); }
+    state.installBanner = state.installMode !== 'none' && !dismissed;
+  }
+
+  function dismissInstall() {
+    try { localStorage.setItem(INSTALL_KEY, 'dismissed'); } catch (e) { logError('Installations-Hinweis speichern', e); }
+  }
 
   async function tonightGrams() {
     var day = Logic.partyDay(new Date());
@@ -561,6 +586,7 @@
 
   function render(soft) {
     var view = $('view');
+    refreshInstall();
     updateNav();
     if (!state.group) {
       leaveMap();
@@ -587,7 +613,7 @@
     if (state.tab === 'feed') html = Views.feedView(state);
     else if (state.tab === 'group') html = Views.groupView(state);
     else html = Views.rankView(state);
-    if (state.tab !== 'map') html = Views.pendingBar(state) + html;
+    if (state.tab !== 'map') html = Views.pendingBar(state) + (state.tab === 'rank' ? Views.installBanner(state) : '') + html;
     view.classList.toggle('anim', !soft);
     view.innerHTML = html;
     view.scrollTop = soft ? scroll : 0;
@@ -1046,6 +1072,26 @@
     'reload-stats': function () { state.statsError = null; state.statsDrinks = null; render(true); loadStats(); },
     'flush-queue': function () { flushQueue(true); },
     'open-heimweg': function () { openHeimweg(); },
+    'open-install': async function () {
+      if (deferredInstall) {
+        var ev = deferredInstall;
+        deferredInstall = null;
+        try {
+          ev.prompt();
+          var choice = await ev.userChoice;
+          if (choice && choice.outcome === 'accepted') dismissInstall();
+        } catch (e) { logError('Installieren', e); toast('Installieren hat nicht geklappt.', 'bad'); }
+        closeSheet();
+        render(true);
+        return;
+      }
+      state.log = null;
+      var s = $('sheet');
+      s.innerHTML = Views.installSheet(state.installMode);
+      s.hidden = false;
+      document.body.style.overflow = 'hidden';
+    },
+    'dismiss-install': function () { dismissInstall(); render(true); },
     'retry-pending': async function (t) {
       var id = t.getAttribute('data-id');
       try {
