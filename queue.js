@@ -25,19 +25,52 @@
         var store = tx.objectStore(STORE);
         var out = fn(store);
         tx.oncomplete = function () { resolve(out && out.result !== undefined ? out.result : undefined); };
-        tx.onerror = function () { reject(tx.error); };
-        tx.onabort = function () { reject(tx.error || new Error('Speichern abgebrochen.')); };
+        tx.onerror = function () { reject(tx.error || new Error('Offline-Speicher: Fehler beim Schreiben.')); };
+        tx.onabort = function () { reject(tx.error || new Error('Offline-Speicher: Schreiben abgebrochen.')); };
       });
     });
   }
 
+  function readBuffer(blob) {
+    if (blob.arrayBuffer) return blob.arrayBuffer();
+    return new Promise(function (resolve, reject) {
+      var fr = new root.FileReader();
+      fr.onload = function () { resolve(fr.result); };
+      fr.onerror = function () { reject(fr.error || new Error('Foto konnte nicht gelesen werden.')); };
+      fr.readAsArrayBuffer(blob);
+    });
+  }
+
+  function pack(item) {
+    var copy = {};
+    Object.keys(item).forEach(function (k) { if (k !== 'blob') copy[k] = item[k]; });
+    if (!item.blob) return Promise.resolve(copy);
+    return readBuffer(item.blob).then(function (buf) {
+      copy.buf = buf;
+      copy.type = item.blob.type || 'image/jpeg';
+      return copy;
+    });
+  }
+
+  function unpack(rec) {
+    var item = {};
+    Object.keys(rec).forEach(function (k) { if (k !== 'buf' && k !== 'type') item[k] = rec[k]; });
+    if (rec.buf) item.blob = new root.Blob([rec.buf], { type: rec.type || 'image/jpeg' });
+    else if (rec.blob) item.blob = rec.blob;
+    return item;
+  }
+
+  function put(item) {
+    return pack(item).then(function (rec) { return run('readwrite', function (s) { return s.put(rec); }); });
+  }
+
   var Queue = {
-    add: function (item) { return run('readwrite', function (s) { return s.put(item); }); },
-    update: function (item) { return run('readwrite', function (s) { return s.put(item); }); },
+    add: put,
+    update: put,
     remove: function (id) { return run('readwrite', function (s) { return s.delete(id); }); },
     all: function () {
       return run('readonly', function (s) { return s.getAll(); }).then(function (list) {
-        return (list || []).sort(function (a, b) { return a.takenAt < b.takenAt ? -1 : a.takenAt > b.takenAt ? 1 : 0; });
+        return (list || []).map(unpack).sort(function (a, b) { return a.takenAt < b.takenAt ? -1 : a.takenAt > b.takenAt ? 1 : 0; });
       });
     }
   };

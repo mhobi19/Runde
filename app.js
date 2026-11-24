@@ -908,7 +908,7 @@
           return;
         } catch (qe) {
           logError('Offline speichern', qe);
-          e = qe;
+          e = new Error('Offline-Speicher fehlgeschlagen: ' + (qe && qe.name ? qe.name + ' ' : '') + (qe && qe.message ? qe.message : 'unbekannt'));
         }
       } else if (e && e.code) {
         sb.storage.from(BUCKET).remove([item.path]).then(function (x) { if (x.error) logError('Foto aufräumen', x.error); });
