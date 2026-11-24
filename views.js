@@ -107,9 +107,12 @@
     '</div>';
   }
 
+  var RANK_MODES = [{ value: 'board', label: 'Rangliste' }, { value: 'stats', label: 'Statistik' }];
+
   function rankView(state) {
+    if (state.rankMode === 'stats') return statsView(state);
     var rows = Logic.rankRows(state.board || []);
-    var html = '<div class="stack">' + seg('period', 'period', PERIODS, state.period) + tonightCard(state);
+    var html = '<div class="stack">' + seg('rankmode', 'mode', RANK_MODES, 'board') + seg('period', 'period', PERIODS, state.period) + tonightCard(state);
     if (!rows.length) {
       html += '<div class="empty">Noch niemand in der Gruppe.</div>';
     } else if (rows.every(function (r) { return r.drinks === 0; })) {
@@ -141,6 +144,92 @@
       '</li>';
     }).join('') + '</ol></div>';
     return html;
+  }
+
+  /* ---------- Statistik ---------- */
+  function shortDay(day) { return String(day).slice(8) + '.' + String(day).slice(5, 7) + '.'; }
+
+  function nameOf(state, uid) {
+    var m = (state.members || []).filter(function (x) { return x.user_id === uid; })[0];
+    return m && m.profiles ? m.profiles.display_name : '?';
+  }
+
+  function tile(label, value, unit) {
+    return '<div class="tile"><span class="tile-v">' + esc(value) + (unit ? '<small>' + esc(unit) + '</small>' : '') + '</span><span class="tile-l">' + esc(label) + '</span></div>';
+  }
+
+  function nightChart(perNight) {
+    var max = 0;
+    perNight.forEach(function (n) { if (n.points > max) max = n.points; });
+    if (max <= 0) return '<p class="tiny muted">In den letzten 14 Abenden noch nichts eingetragen.</p>';
+    var W = 280, H = 96, bw = 14, gap = (W - bw * perNight.length) / (perNight.length - 1);
+    var bars = perNight.map(function (n, i) {
+      var h = n.points > 0 ? Math.max(3, Math.round(n.points / max * (H - 10))) : 2;
+      var x = (i * (bw + gap)).toFixed(1);
+      var last = i === perNight.length - 1;
+      return '<rect class="nbar' + (last ? ' now' : '') + (n.points > 0 ? '' : ' zero') + '" x="' + x + '" y="' + (H - h) + '" width="' + bw + '" height="' + h + '" rx="4"><title>' + esc(shortDay(n.day) + ': ' + fmt(n.points) + ' Punkte, ' + n.count + ' Getränke') + '</title></rect>';
+    }).join('');
+    return '<svg class="nchart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Punkte der letzten 14 Abende">' + bars + '</svg>' +
+      '<div class="nchart-axis"><span>' + esc(shortDay(perNight[0].day)) + '</span><span>Höchster Abend: ' + esc(fmt(max)) + ' Punkte</span><span>heute</span></div>';
+  }
+
+  function statsView(state) {
+    var head = '<div class="stack">' + seg('rankmode', 'mode', RANK_MODES, 'stats') + seg('period', 'period', PERIODS, state.period);
+    if (state.statsError) return head + '<div class="empty">' + esc(state.statsError) + '<br><button class="btn" data-action="reload-stats">Erneut laden</button></div></div>';
+    if (!state.statsDrinks) return head + '<div class="empty">Lade Statistik…</div></div>';
+    var st = Logic.computeStats(state.statsDrinks, state.uid, state.period, state.now || new Date(), (state.members || []).length || 1);
+    var me = st.me;
+    var html = head;
+    html += '<section class="sec"><h3>Deine Zahlen</h3>' +
+      (me.count
+        ? '<div class="tiles">' + tile('Getränke', String(me.count)) + tile('Punkte', fmt(me.points)) + tile('Alkohol', fmt(me.grams), ' g') + tile('Abende', String(me.nights)) + '</div>' +
+          (me.favorite ? '<p class="fav"><span class="muted">Lieblingsgetränk</span><b>' + esc(me.favorite.name) + '</b><span class="muted">' + me.favorite.count + 'x</span></p>' : '') +
+          '<p class="tiny muted">Im Schnitt ' + esc(fmt(me.avgPointsPerNight)) + ' Punkte pro Abend.</p>'
+        : '<p class="muted">In diesem Zeitraum hast du noch nichts eingetragen.</p>') +
+      '</section>';
+    if (me.byCategory.length) {
+      html += '<section class="sec"><h3>Was du trinkst</h3><ul class="cats-bars">' + me.byCategory.map(function (c) {
+        return '<li><span class="cb-l">' + esc(c.label) + '</span><span class="cb-bar"><i style="width:' + Math.max(4, Math.round(c.share * 100)) + '%"></i></span><span class="cb-n">' + c.count + '</span></li>';
+      }).join('') + '</ul></section>';
+    }
+    html += '<section class="sec"><h3>Deine letzten 14 Abende</h3>' + nightChart(st.perNight) + '</section>';
+    var g = st.group;
+    html += '<section class="sec"><h3>Die ganze Gruppe</h3>' +
+      (g.count
+        ? '<div class="tiles three">' + tile('Getränke', String(g.count)) + tile('Punkte', fmt(g.points)) + tile('Alkohol', fmt(g.grams), ' g') + '</div>' +
+          (st.records.mostDrinks ? '<p class="rec"><span class="muted">Meiste Getränke an einem Abend</span><b>' + esc(nameOf(state, st.records.mostDrinks.user_id)) + ': ' + st.records.mostDrinks.count + '</b><span class="muted">am ' + esc(shortDay(st.records.mostDrinks.day)) + '</span></p>' : '') +
+          (st.records.mostPoints ? '<p class="rec"><span class="muted">Meiste Punkte an einem Abend</span><b>' + esc(nameOf(state, st.records.mostPoints.user_id)) + ': ' + esc(fmt(st.records.mostPoints.points)) + '</b><span class="muted">am ' + esc(shortDay(st.records.mostPoints.day)) + '</span></p>' : '') +
+          (g.favorite ? '<p class="rec"><span class="muted">Beliebtestes Getränk</span><b>' + esc(g.favorite.name) + '</b><span class="muted">' + g.favorite.count + 'x</span></p>' : '')
+        : '<p class="muted">In diesem Zeitraum gibt es noch keine Getränke.</p>') +
+      '</section></div>';
+    return html;
+  }
+
+  /* ---------- Offline-Warteschlange ---------- */
+  function pendingBar(state) {
+    var items = state.pending || [];
+    var waiting = items.filter(function (i) { return !i.failed; });
+    var failed = items.filter(function (i) { return i.failed; });
+    var html = '';
+    if (state.offline) {
+      html += '<div class="pbar"><div><b>Offline</b><small>Rangliste und Karte kommen wieder mit Netz. Eintragen geht trotzdem.</small></div></div>';
+    }
+    if (waiting.length) {
+      html += '<div class="pbar"><div><b>' + waiting.length + (waiting.length === 1 ? ' Getränk wartet' : ' Getränke warten') + ' auf Netz</b><small>Wird automatisch gesendet, sobald du online bist.</small></div>' +
+        '<button type="button" class="btn sm" data-action="flush-queue">Jetzt senden</button></div>';
+    }
+    failed.forEach(function (i) {
+      html += '<div class="pbar bad"><div><b>' + esc(i.drink.name) + ' konnte nicht gesendet werden</b><small>' + esc(i.failed) + '</small></div>' +
+        '<button type="button" class="btn sm" data-action="discard-pending" data-id="' + esc(i.id) + '">Verwerfen</button></div>';
+    });
+    return html;
+  }
+
+  function pendingCard(i) {
+    return '<article class="post pending">' +
+      '<div class="shot-btn">' + (i.thumb ? '<img src="' + esc(i.thumb) + '" alt="">' : '') + '<span class="gain-chip wait">wartet</span></div>' +
+      '<div class="post-body"><div class="post-drink"><b>' + esc(Logic.drinkLabel(i.drink)) + '</b><span>' + fmt(i.drink.abv) + ' % · Foto liegt auf deinem Gerät</span></div></div>' +
+    '</article>';
   }
 
   /* ---------- Verlauf ---------- */
@@ -182,10 +271,12 @@
 
   function feedView(state) {
     var list = state.drinks || [];
-    if (!list.length) {
+    var gidNow = state.group ? state.group.id : null;
+    var pend = (state.pending || []).filter(function (i) { return !i.failed && i.groupId === gidNow; });
+    if (!list.length && !pend.length) {
       return '<div class="empty">Noch keine Getränke.<br><span class="muted">Das erste geht aufs Haus: Plus antippen.</span></div>';
     }
-    return '<div class="stack feed">' + list.map(function (d) { return feedItem(d, state); }).join('') +
+    return '<div class="stack feed">' + pend.map(pendingCard).join('') + list.map(function (d) { return feedItem(d, state); }).join('') +
       '<p class="tiny muted center">Zweifelst du ein Foto an, tippe auf die Flagge. Mit genug Meldungen zählt das Getränk nicht.</p></div>';
   }
 
@@ -397,6 +488,9 @@
     authView: authView,
     noGroupView: noGroupView,
     rankView: rankView,
+    statsView: statsView,
+    pendingBar: pendingBar,
+    pendingCard: pendingCard,
     feedView: feedView,
     mapView: mapView,
     mapPopup: mapPopup,

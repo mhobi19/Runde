@@ -18,8 +18,11 @@
     groups: [], group: null, members: [], drinks: [], board: [], mapDrinks: [],
     today: { points: 0, grams: 0, count: 0 },
     tab: 'rank', period: 'heute', mapPeriod: 'woche',
-    now: new Date(), authMode: 'login', log: null, loadToken: 0, prefs: null, adminOpen: false
+    now: new Date(), authMode: 'login', log: null, loadToken: 0, prefs: null, adminOpen: false,
+    pending: [], offline: false, rankMode: 'board', statsDrinks: null, statsError: null
   };
+  var CACHE_KEY = 'runde_cache';
+  var flushing = false;
   var PREF_KEY = 'runde_device';
   var photoCache = {};
   var lastGeo = null;
@@ -131,19 +134,35 @@
       state.session = res.data && res.data.session;
       sb.auth.onAuthStateChange(function (event, session) {
         state.session = session;
-        if (event === 'SIGNED_OUT') { setTimeout(showAuth, 0); }
+        if (event === 'SIGNED_OUT') { clearCache(); setTimeout(showAuth, 0); }
       });
-      if (state.session) { await enterApp(); } else { showAuth(); }
+      var cache = readCache();
+      if (state.session) { await enterApp(); }
+      else if (navigator.onLine === false && cache) { await enterOffline(cache); }
+      else { showAuth(); }
     } catch (e) {
       logError('init', e);
-      showAuth();
-      setMsg('auth-msg', humanError(e));
+      var c2 = readCache();
+      if (c2 && Logic.isNetworkError(e)) { await enterOffline(c2); }
+      else { showAuth(); setMsg('auth-msg', humanError(e)); }
     }
+    window.addEventListener('online', function () {
+      if (state.offline) leaveOffline().then(function () { flushQueue(false); });
+      else flushQueue(false);
+    });
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && state.pending.length) { if (state.offline) leaveOffline(); else flushQueue(false); }
+    });
     $('boot').hidden = true;
     setInterval(function () {
       if (document.hidden || !state.session || !state.group || state.log || !$('camera').hidden) return;
       refreshGroupData(true);
     }, REFRESH_MS);
+    setInterval(function () {
+      if (state.pending.some(function (i) { return !i.failed; })) {
+        if (state.offline && navigator.onLine !== false) leaveOffline(); else flushQueue(false);
+      }
+    }, 45000);
   }
 
   /* ---------- Anmeldung ---------- */
@@ -208,8 +227,10 @@
     $('screen-auth').hidden = true;
     $('screen-app').hidden = false;
     renderGroupSelect();
+    await refreshPending();
     render(false);
     await refreshGroupData(false);
+    flushQueue(false);
   }
 
   async function loadGroups() {
@@ -225,6 +246,145 @@
     if (state.group) {
       state.group = state.groups.filter(function (g) { return g.id === state.group.id; })[0] || null;
     }
+    saveCache();
+  }
+
+  function saveCache() {
+    if (!state.uid || !state.profile) return;
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ uid: state.uid, name: state.profile.display_name, groups: state.groups }));
+    } catch (e) { logError('Cache speichern', e); }
+  }
+
+  function readCache() {
+    try {
+      var raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return null;
+      var c = JSON.parse(raw);
+      return c && c.uid && Array.isArray(c.groups) ? c : null;
+    } catch (e) { logError('Cache lesen', e); return null; }
+  }
+
+  function clearCache() {
+    try { localStorage.removeItem(CACHE_KEY); } catch (e) { logError('Cache löschen', e); }
+  }
+
+  async function enterOffline(c) {
+    state.uid = c.uid;
+    state.profile = { id: c.uid, display_name: c.name };
+    state.groups = c.groups;
+    var saved = null;
+    try { saved = localStorage.getItem('runde_group'); } catch (e) { logError('localStorage lesen', e); }
+    state.group = state.groups.filter(function (g) { return g.id === saved; })[0] || state.groups[0] || null;
+    state.tab = 'rank';
+    state.offline = true;
+    $('screen-auth').hidden = true;
+    $('screen-app').hidden = false;
+    renderGroupSelect();
+    await refreshPending();
+    render(false);
+  }
+
+  async function leaveOffline() {
+    try {
+      var r = await sb.auth.getSession();
+      state.session = r.data && r.data.session;
+      state.offline = false;
+      if (!state.session) { showAuth(); return; }
+      await enterApp();
+    } catch (e) {
+      logError('Wieder online', e);
+      state.offline = true;
+    }
+  }
+
+  /* ---------- Offline-Warteschlange ---------- */
+  async function refreshPending() {
+    var list = [];
+    try { list = await window.RundeQueue.all(); } catch (e) { logError('Warteschlange lesen', e); }
+    (state.pending || []).forEach(function (i) { if (i.thumb) URL.revokeObjectURL(i.thumb); });
+    state.pending = list.filter(function (i) { return i.userId === state.uid; }).map(function (i) {
+      return { id: i.id, groupId: i.groupId, drink: i.drink, failed: i.failed || null, thumb: i.blob ? URL.createObjectURL(i.blob) : null };
+    });
+  }
+
+  async function sendDrink(item) {
+    var up = await sb.storage.from(BUCKET).upload(item.path, item.blob, { contentType: 'image/jpeg', upsert: false, cacheControl: '3600' });
+    if (up.error && String(up.error.statusCode) !== '409' && !/already exists|duplicate/i.test(String(up.error.message))) throw up.error;
+    var r = await sb.rpc('log_drink', {
+      p_group: item.groupId,
+      p_category: item.drink.category,
+      p_name: item.drink.name,
+      p_abv: item.drink.abv,
+      p_volume_ml: item.drink.volume_ml,
+      p_party_day: item.partyDay,
+      p_photo_path: item.path,
+      p_lat: item.lat,
+      p_lng: item.lng,
+      p_taken_at: item.takenAt
+    });
+    if (r.error) throw r.error;
+    return r.data || {};
+  }
+
+  async function flushQueue(manual) {
+    if (flushing || !sb || !state.session || state.offline) return;
+    if (navigator.onLine === false) { if (manual) toast('Noch kein Netz.', 'bad'); return; }
+    flushing = true;
+    var sent = 0, pts = 0, capped = 0;
+    try {
+      var list = await window.RundeQueue.all();
+      for (var i = 0; i < list.length; i++) {
+        var item = list[i];
+        if (item.userId !== state.uid || item.failed) continue;
+        try {
+          var res = await sendDrink(item);
+          await window.RundeQueue.remove(item.id);
+          sent++;
+          pts += Number(res.points) || 0;
+          if (res.capped) capped++;
+        } catch (e) {
+          if (Logic.isNetworkError(e)) { logError('Warteschlange: kein Netz', e); break; }
+          logError('Warteschlange: Getränk abgelehnt', e);
+          item.failed = humanError(e);
+          await window.RundeQueue.update(item);
+        }
+      }
+    } catch (e) {
+      logError('Warteschlange', e);
+    } finally {
+      flushing = false;
+    }
+    await refreshPending();
+    if (sent) {
+      toast(sent + (sent === 1 ? ' Getränk' : ' Getränke') + ' hochgeladen, +' + Logic.fmt(pts) + ' Punkte' + (capped ? ' (Limit erreicht)' : ''), 'good', 4800);
+      await refreshGroupData(false);
+    } else {
+      render(true);
+    }
+  }
+
+  /* ---------- Statistik ---------- */
+  async function loadStats() {
+    if (!state.group || state.offline) return;
+    var gid = state.group.id;
+    var all = [];
+    state.statsError = null;
+    try {
+      for (var from = 0; from < 5000; from += 1000) {
+        var r = await sb.from('drinks').select('user_id,party_day,category,name,points,alcohol_g,drink_flags(user_id)')
+          .eq('group_id', gid).order('created_at', { ascending: false }).range(from, from + 999);
+        if (r.error) throw r.error;
+        all = all.concat(r.data || []);
+        if ((r.data || []).length < 1000) break;
+      }
+      if (!state.group || state.group.id !== gid) return;
+      state.statsDrinks = all;
+    } catch (e) {
+      logError('Statistik laden', e);
+      state.statsError = humanError(e);
+    }
+    if (state.tab === 'rank' && state.rankMode === 'stats') render(true);
   }
 
   function renderGroupSelect() {
@@ -246,6 +406,7 @@
     state.group = g;
     try { localStorage.setItem('runde_group', g.id); } catch (e) { logError('localStorage schreiben', e); }
     state.members = []; state.drinks = []; state.board = []; state.mapDrinks = [];
+    state.statsDrinks = null; state.statsError = null;
     state.today = { points: 0, grams: 0, count: 0 };
     renderGroupSelect();
     render(false);
@@ -254,6 +415,7 @@
 
   /* ---------- Daten laden ---------- */
   async function refreshGroupData(soft) {
+    if (state.offline) return;
     if (!state.group) { render(false); return; }
     var token = ++state.loadToken;
     var gid = state.group.id;
@@ -280,6 +442,7 @@
       state.today = Logic.usageToday(res[4].data || [], state.uid, day);
       state.now = now;
       render(!!soft);
+      if (state.rankMode === 'stats' && !soft) loadStats();
     } catch (e) {
       logError('Daten laden', e);
       if (!soft) toast(humanError(e), 'bad');
@@ -357,6 +520,7 @@
     if (state.tab === 'feed') html = Views.feedView(state);
     else if (state.tab === 'group') html = Views.groupView(state);
     else html = Views.rankView(state);
+    if (state.tab !== 'map') html = Views.pendingBar(state) + html;
     view.classList.toggle('anim', !soft);
     view.innerHTML = html;
     view.scrollTop = soft ? scroll : 0;
@@ -697,27 +861,23 @@
     btn.textContent = 'Speichere…';
     setMsg('log-msg', '');
     var gid = state.group.id;
-    var path = gid + '/' + state.uid + '/' + uuid() + '.jpg';
     var geo = ls.geo && ls.geo.status === 'ok' ? ls.geo : null;
+    var taken = new Date();
+    var item = {
+      id: uuid(),
+      groupId: gid,
+      userId: state.uid,
+      path: gid + '/' + state.uid + '/' + uuid() + '.jpg',
+      drink: { name: String(ls.name).trim(), category: cat.key, abv: Number(ls.abv), volume_ml: Number(ls.sizeMl) },
+      partyDay: Logic.partyDay(taken),
+      takenAt: taken.toISOString(),
+      lat: geo ? geo.lat : null,
+      lng: geo ? geo.lng : null,
+      blob: ls.blob
+    };
     try {
-      var up = await sb.storage.from(BUCKET).upload(path, ls.blob, { contentType: 'image/jpeg', upsert: false, cacheControl: '3600' });
-      if (up.error) throw up.error;
-      var r = await sb.rpc('log_drink', {
-        p_group: gid,
-        p_category: cat.key,
-        p_name: String(ls.name).trim(),
-        p_abv: Number(ls.abv),
-        p_volume_ml: Number(ls.sizeMl),
-        p_party_day: Logic.partyDay(new Date()),
-        p_photo_path: path,
-        p_lat: geo ? geo.lat : null,
-        p_lng: geo ? geo.lng : null
-      });
-      if (r.error) {
-        sb.storage.from(BUCKET).remove([path]).then(function (x) { if (x.error) logError('Foto aufräumen', x.error); });
-        throw r.error;
-      }
-      var res = r.data || {};
+      if (navigator.onLine === false || state.offline) throw new Error('offline');
+      var res = await sendDrink(item);
       closeSheet();
       if (res.capped && Number(res.points) <= 0) {
         toast((res.reason === 'alkohol' ? 'Alkohol-Obergrenze erreicht' : 'Punkte-Limit erreicht') + ': keine Punkte mehr heute. Wasser, Essen, Pause.', 'bad', 5200);
@@ -728,6 +888,21 @@
       }
       await refreshGroupData(false);
     } catch (e) {
+      if (Logic.isNetworkError(e)) {
+        try {
+          await window.RundeQueue.add(item);
+          closeSheet();
+          await refreshPending();
+          render(false);
+          toast('Kein Netz. Das Getränk ist auf deinem Gerät gespeichert und wird gesendet, sobald du online bist.', 'good', 6000);
+          return;
+        } catch (qe) {
+          logError('Offline speichern', qe);
+          e = qe;
+        }
+      } else if (e && e.code) {
+        sb.storage.from(BUCKET).remove([item.path]).then(function (x) { if (x.error) logError('Foto aufräumen', x.error); });
+      }
       logError('Getränk speichern', e);
       if (state.log === ls) {
         ls.saving = false;
@@ -794,6 +969,20 @@
   var actions = {
     'auth-mode': function (t) { state.authMode = t.getAttribute('data-mode'); showAuth(); },
     'refresh': function () { toast('Aktualisiere…', null, 900); refreshGroupData(false); },
+    'rankmode': function (t) {
+      state.rankMode = t.getAttribute('data-mode') === 'stats' ? 'stats' : 'board';
+      render(false);
+      if (state.rankMode === 'stats') loadStats();
+    },
+    'reload-stats': function () { state.statsError = null; state.statsDrinks = null; render(true); loadStats(); },
+    'flush-queue': function () { flushQueue(true); },
+    'discard-pending': async function (t) {
+      if (!window.confirm('Dieses Getränk samt Foto verwerfen? Es zählt dann nicht.')) return;
+      try { await window.RundeQueue.remove(t.getAttribute('data-id')); }
+      catch (e) { logError('Verwerfen', e); toast('Konnte nicht verworfen werden.', 'bad'); return; }
+      await refreshPending();
+      render(true);
+    },
     'period': function (t) { state.period = t.getAttribute('data-period'); loadBoard(); },
     'map-period': function (t) { state.mapPeriod = t.getAttribute('data-period'); loadMapData(); },
     'open-log': openLog,
@@ -879,7 +1068,8 @@
     'logout': async function () {
       var r = await sb.auth.signOut();
       if (r.error) logError('Abmelden', r.error);
-      state.session = null; state.uid = null; state.group = null; state.groups = [];
+      state.session = null; state.uid = null; state.group = null; state.groups = []; state.pending = []; state.statsDrinks = null;
+      clearCache();
       showAuth();
     }
   };

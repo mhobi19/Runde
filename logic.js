@@ -246,6 +246,83 @@
     return order.map(function (k) { return map[k]; });
   }
 
+  function isNetworkError(e) {
+    if (!e) return false;
+    var m = String(e.message || e);
+    if (/failed to fetch|networkerror|load failed|network request failed|fetch failed|timed? ?out|offline/i.test(m)) return true;
+    return typeof navigator !== 'undefined' && navigator.onLine === false && !e.code;
+  }
+
+  function dayShift(day, n) {
+    var p = String(day).split('-');
+    var d = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2]) + n));
+    return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate());
+  }
+
+  function round1(n) { return Math.round(n * 10) / 10; }
+
+  function computeStats(drinks, uid, period, now, memberCount) {
+    var from = periodStart(period, now);
+    var today = partyDay(now);
+    var valid = (drinks || []).filter(function (d) {
+      return !isDisputed((d.drink_flags || []).length, memberCount || 1);
+    });
+    var inPeriod = valid.filter(function (d) { return !from || d.party_day >= from; });
+
+    function summarize(list) {
+      var points = 0, grams = 0, nights = {}, names = {}, cats = {};
+      list.forEach(function (d) {
+        points += Number(d.points) || 0;
+        grams += Number(d.alcohol_g) || 0;
+        nights[d.party_day] = true;
+        var key = String(d.name || '').trim().toLowerCase();
+        if (key) { names[key] = names[key] || { name: d.name, count: 0 }; names[key].count++; }
+        cats[d.category] = (cats[d.category] || 0) + 1;
+      });
+      var fav = null;
+      Object.keys(names).forEach(function (k) { if (!fav || names[k].count > fav.count) fav = names[k]; });
+      var nightCount = Object.keys(nights).length;
+      var byCategory = CATEGORIES.map(function (c) {
+        return { key: c.key, label: c.label, count: cats[c.key] || 0, share: list.length ? (cats[c.key] || 0) / list.length : 0 };
+      }).filter(function (c) { return c.count > 0; }).sort(function (a, b) { return b.count - a.count; });
+      return {
+        count: list.length, points: round1(points), grams: round1(grams), nights: nightCount,
+        avgPointsPerNight: nightCount ? round1(points / nightCount) : 0,
+        favorite: fav ? { name: fav.name, count: fav.count } : null,
+        byCategory: byCategory
+      };
+    }
+
+    var mine = inPeriod.filter(function (d) { return d.user_id === uid; });
+    var me = summarize(mine);
+
+    var perNight = [];
+    for (var i = 13; i >= 0; i--) {
+      var day = dayShift(today, -i);
+      var pts = 0, g = 0, c = 0;
+      valid.forEach(function (d) {
+        if (d.user_id === uid && d.party_day === day) { pts += Number(d.points) || 0; g += Number(d.alcohol_g) || 0; c++; }
+      });
+      perNight.push({ day: day, points: round1(pts), grams: round1(g), count: c });
+    }
+
+    var perUserNight = {};
+    inPeriod.forEach(function (d) {
+      var k = d.user_id + '|' + d.party_day;
+      var o = perUserNight[k] || (perUserNight[k] = { user_id: d.user_id, day: d.party_day, count: 0, points: 0, grams: 0 });
+      o.count++; o.points += Number(d.points) || 0; o.grams += Number(d.alcohol_g) || 0;
+    });
+    var topCount = null, topPoints = null;
+    Object.keys(perUserNight).forEach(function (k) {
+      var o = perUserNight[k];
+      o.points = round1(o.points); o.grams = round1(o.grams);
+      if (!topCount || o.count > topCount.count) topCount = o;
+      if (!topPoints || o.points > topPoints.points) topPoints = o;
+    });
+
+    return { me: me, group: summarize(inPeriod), perNight: perNight, records: { mostDrinks: topCount, mostPoints: topPoints } };
+  }
+
   return {
     POINT_DIVISOR: POINT_DIVISOR,
     ALCOHOL_DENSITY: ALCOHOL_DENSITY,
@@ -259,6 +336,9 @@
     presetByKey: presetByKey,
     presetsOf: presetsOf,
     pointsRaw: pointsRaw,
+    isNetworkError: isNetworkError,
+    dayShift: dayShift,
+    computeStats: computeStats,
     alcoholGrams: alcoholGrams,
     awardPoints: awardPoints,
     partyDay: partyDay,

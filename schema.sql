@@ -302,7 +302,8 @@ create or replace function public.log_drink(
   p_party_day date,
   p_photo_path text,
   p_lat double precision default null,
-  p_lng double precision default null
+  p_lng double precision default null,
+  p_taken_at timestamptz default null
 )
 returns jsonb
 language plpgsql security definer set search_path = public as $$
@@ -322,7 +323,9 @@ declare
   v_award numeric;
   v_reason text := null;
   v_id uuid;
-  v_today date := (now() at time zone 'utc')::date;
+  v_created timestamptz := now();
+  v_today date;
+  v_dup record;
 begin
   if v_uid is null then
     raise exception 'Nicht angemeldet';
@@ -330,6 +333,10 @@ begin
   if not public.is_member(p_group) then
     raise exception 'Du bist nicht in dieser Gruppe';
   end if;
+  if p_taken_at is not null and p_taken_at > now() - interval '48 hours' and p_taken_at <= now() + interval '5 minutes' then
+    v_created := least(p_taken_at, now());
+  end if;
+  v_today := (v_created at time zone 'utc')::date;
   select * into v_group from public.groups where id = p_group;
   select ref_ml into v_ref from public.categories where key = p_category;
   if v_ref is null then
@@ -349,6 +356,14 @@ begin
   end if;
   if p_photo_path is null or p_photo_path not like (p_group::text || '/' || v_uid::text || '/%') then
     raise exception 'Foto fehlt oder ist ungültig';
+  end if;
+  select id, points, points_raw into v_dup from public.drinks
+  where user_id = v_uid and photo_path = p_photo_path;
+  if found then
+    return jsonb_build_object(
+      'id', v_dup.id, 'points', v_dup.points, 'points_raw', v_dup.points_raw,
+      'capped', v_dup.points < v_dup.points_raw, 'reason', null, 'duplicate', true
+    );
   end if;
   if (p_lat is null) <> (p_lng is null) then
     raise exception 'Standort ungültig';
@@ -383,10 +398,10 @@ begin
 
   insert into public.drinks (
     group_id, user_id, category, name, abv, volume_ml, alcohol_g,
-    points_raw, points, party_day, photo_path, lat, lng
+    points_raw, points, party_day, photo_path, lat, lng, created_at
   ) values (
     p_group, v_uid, p_category, v_name, v_abv, p_volume_ml, v_g,
-    v_raw, v_award, p_party_day, p_photo_path, p_lat, p_lng
+    v_raw, v_award, p_party_day, p_photo_path, p_lat, p_lng, v_created
   )
   returning id into v_id;
 
@@ -500,7 +515,7 @@ grant execute on function public.is_member_drink(uuid) to authenticated;
 revoke all on function public.create_group(text) from public, anon;
 revoke all on function public.join_group(text) from public, anon;
 revoke all on function public.set_limits(uuid, numeric, numeric) from public, anon;
-revoke all on function public.log_drink(uuid, text, text, numeric, integer, date, text, double precision, double precision) from public, anon;
+revoke all on function public.log_drink(uuid, text, text, numeric, integer, date, text, double precision, double precision, timestamptz) from public, anon;
 revoke all on function public.delete_drink(uuid) from public, anon;
 revoke all on function public.flag_drink(uuid) from public, anon;
 revoke all on function public.unflag_drink(uuid) from public, anon;
@@ -508,7 +523,7 @@ revoke all on function public.leaderboard(uuid, date) from public, anon;
 grant execute on function public.create_group(text) to authenticated;
 grant execute on function public.join_group(text) to authenticated;
 grant execute on function public.set_limits(uuid, numeric, numeric) to authenticated;
-grant execute on function public.log_drink(uuid, text, text, numeric, integer, date, text, double precision, double precision) to authenticated;
+grant execute on function public.log_drink(uuid, text, text, numeric, integer, date, text, double precision, double precision, timestamptz) to authenticated;
 grant execute on function public.delete_drink(uuid) to authenticated;
 grant execute on function public.flag_drink(uuid) to authenticated;
 grant execute on function public.unflag_drink(uuid) to authenticated;

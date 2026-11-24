@@ -328,6 +328,35 @@ body[data-scene=group] #bg{--b1:rgba(167,139,250,.32);--b2:rgba(212,175,55,.3);-
 .card,.row{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 #screen-app>#view{background:transparent}
 .device-note{margin:0}
+
+/* ---------- Offline-Warteschlange und Statistik ---------- */
+.pbar{display:flex;align-items:center;gap:12px;justify-content:space-between;margin-bottom:12px;padding:12px 14px;border-radius:16px;border:1px solid rgba(212,175,55,.45);background:rgba(212,175,55,.09)}
+.pbar b{display:block;font-size:15px}
+.pbar small{display:block;color:var(--mut);font-size:12.5px;margin-top:2px}
+.pbar.bad{border-color:rgba(248,113,113,.5);background:rgba(248,113,113,.08)}
+.btn.sm{padding:8px 14px;min-height:0;font-size:14px;flex:none}
+.post.pending .shot-btn{aspect-ratio:16/7;cursor:default}
+.gain-chip.wait{color:var(--mut);border-color:var(--line);font-size:14px}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tiles.three{grid-template-columns:repeat(3,1fr)}
+.tile{display:flex;flex-direction:column;gap:2px;padding:14px;border-radius:16px;background:rgba(20,20,32,.74);border:1px solid var(--line)}
+.tile-v{font-size:30px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums;color:var(--gold)}
+.tile-v small{font-size:15px;font-weight:600;color:var(--mut);margin-left:3px}
+.tile-l{font-size:13px;color:var(--mut)}
+.tiles.three .tile-v{font-size:24px}
+.fav,.rec{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px;margin:0}
+.fav b,.rec b{font-size:17px}
+.rec{flex-direction:column;gap:2px;padding:10px 0;border-top:1px solid var(--line)}
+.cats-bars{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.cats-bars li{display:grid;grid-template-columns:92px 1fr 28px;align-items:center;gap:10px;font-size:14px}
+.cb-bar{height:10px;border-radius:99px;background:var(--s2);overflow:hidden}
+.cb-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--vio),var(--gold))}
+.cb-n{text-align:right;color:var(--mut);font-variant-numeric:tabular-nums}
+.nchart{width:100%;height:auto;display:block}
+.nbar{fill:var(--vio);opacity:.85}
+.nbar.zero{fill:var(--s2);opacity:1}
+.nbar.now{fill:var(--gold);opacity:1}
+.nchart-axis{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--mut)}
 </style>
 </head>
 <body>
@@ -420,6 +449,7 @@ body[data-scene=group] #bg{--b1:rgba(167,139,250,.32);--b2:rgba(212,175,55,.3);-
 <script src="config.js"></script>
 <script src="logic.js"></script>
 <script src="views.js"></script>
+<script src="queue.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
