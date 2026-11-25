@@ -41,6 +41,7 @@
           (signup ? '<label>Name<input name="name" type="text" maxlength="24" autocomplete="nickname" placeholder="So sehen dich die anderen"></label>' : '') +
           '<label>E-Mail<input name="email" type="email" autocomplete="email" inputmode="email" placeholder="du@beispiel.de"></label>' +
           '<label>Passwort<input name="password" type="password" minlength="8" autocomplete="' + (signup ? 'new-password' : 'current-password') + '" placeholder="mindestens 8 Zeichen"></label>' +
+          '<label class="check"><input type="checkbox" name="keep" checked><span>Angemeldet bleiben</span></label>' +
           (signup ? '<label class="check"><input type="checkbox" name="adult"><span>Ich bin mindestens 18 Jahre alt.</span></label>' : '') +
           '<button class="btn primary wide" type="submit">' + (signup ? 'Konto erstellen' : 'Anmelden') + '</button>' +
           '<p class="msg" id="auth-msg" role="alert"></p>' +
@@ -452,7 +453,7 @@
           '<details class="fold"><summary>Dieses Gerät</summary>' +
             '<label>Kamera<select data-pref="camera"><option value="auto"' + (prefs.camera === 'system' ? '' : ' selected') + '>Live-Kamera in der App</option><option value="system"' + (prefs.camera === 'system' ? ' selected' : '') + '>Systemkamera, ohne Abfrage</option></select></label>' +
             '<label>Standort<select data-pref="geo"><option value="auto"' + (prefs.geo === 'off' ? '' : ' selected') + '>Automatisch erfassen</option><option value="off"' + (prefs.geo === 'off' ? ' selected' : '') + '>Aus</option></select></label>' +
-            '<p class="tiny muted">Bei der Abfrage „Erlauben“ wählen, nicht „Einmal“. Dann merkt sich der Browser es. iPhone: Einstellungen → Safari → Kamera und Standort → Erlauben. Wurde abgelehnt, nutzt die App die Systemkamera.</p>' +
+            '<p class="tiny muted">iPhone, damit Safari nicht ständig fragt: Adressleiste → aA → Website-Einstellungen → Kamera und Standort auf „Erlauben“. Die Systemkamera braucht gar keine Erlaubnis.</p>' +
           '</details>' +
         '</section>' +
         (state.installMode && state.installMode !== 'none' ? '<section class="gsec"><h3>App</h3><details class="fold"><summary>Als App installieren</summary>' + installSteps(state.installMode) + '</details></section>' : '') +

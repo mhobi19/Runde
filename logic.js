@@ -324,11 +324,15 @@
     });
   }
 
+  function isIos(env) {
+    if (!env) return false;
+    return /iPhone|iPad|iPod/i.test(String(env.ua || '')) || (env.platform === 'MacIntel' && Number(env.touchPoints) > 1);
+  }
+
   function installMode(env) {
     if (!env || env.standalone) return 'none';
     if (env.hasPrompt) return 'prompt';
-    var ios = /iPhone|iPad|iPod/i.test(String(env.ua || '')) || (env.platform === 'MacIntel' && Number(env.touchPoints) > 1);
-    return ios ? 'ios' : 'none';
+    return isIos(env) ? 'ios' : 'none';
   }
 
   function heimwegLevel(grams, limitG) {
@@ -429,6 +433,7 @@
     computeBadges: computeBadges,
     heimwegLevel: heimwegLevel,
     installMode: installMode,
+    isIos: isIos,
     BADGE_DEFS: BADGE_DEFS,
     alcoholGrams: alcoholGrams,
     awardPoints: awardPoints,

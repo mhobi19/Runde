@@ -27,8 +27,35 @@
   var photoCache = {};
   var lastGeo = null;
 
+  var KEEP_KEY = 'runde_keep';
+
+  function keepFlag() {
+    try { return localStorage.getItem(KEEP_KEY) !== '0'; } catch (e) { return true; }
+  }
+
+  var authStorage = {
+    getItem: function (k) {
+      try {
+        var v = localStorage.getItem(k);
+        return v !== null ? v : sessionStorage.getItem(k);
+      } catch (e) { logError('Anmelde-Speicher lesen', e); return null; }
+    },
+    setItem: function (k, v) {
+      try {
+        if (keepFlag()) { localStorage.setItem(k, v); sessionStorage.removeItem(k); }
+        else { sessionStorage.setItem(k, v); localStorage.removeItem(k); }
+      } catch (e) { logError('Anmelde-Speicher schreiben', e); }
+    },
+    removeItem: function (k) {
+      try { localStorage.removeItem(k); sessionStorage.removeItem(k); } catch (e) { logError('Anmelde-Speicher löschen', e); }
+    }
+  };
+
   function loadPrefs() {
     var d = { camera: 'auto', geo: 'auto' };
+    try {
+      if (!localStorage.getItem(PREF_KEY) && Logic.isIos({ ua: navigator.userAgent, platform: navigator.platform, touchPoints: navigator.maxTouchPoints })) d.camera = 'system';
+    } catch (e) { logError('Standard-Kamera', e); }
     try {
       var raw = localStorage.getItem(PREF_KEY);
       if (raw) {
@@ -121,6 +148,10 @@
       bootMessage('Einrichtung fehlt: Trage in config.js deine Supabase-URL und den Key ein (siehe SETUP.md).');
       return;
     }
+    try {
+      if (!keepFlag() && !sessionStorage.getItem('runde_alive')) clearCache();
+      sessionStorage.setItem('runde_alive', '1');
+    } catch (e) { logError('Sitzungsmarke', e); }
     var cache = readCache();
     var libOk = !!(window.supabase && window.supabase.createClient);
     if (!libOk && !cache) {
@@ -130,7 +161,7 @@
     bindEvents();
     if (libOk) {
       sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
-        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storage: authStorage }
       });
       sb.auth.onAuthStateChange(function (event, session) {
         state.session = session;
@@ -204,6 +235,7 @@
       if (pw.length < 8) { setMsg('auth-msg', 'Passwort: mindestens 8 Zeichen.'); return; }
       if (!fd.get('adult')) { setMsg('auth-msg', 'Die App ist nur für Personen ab 18.'); return; }
     }
+    try { localStorage.setItem(KEEP_KEY, fd.get('keep') ? '1' : '0'); } catch (e) { logError('Angemeldet bleiben speichern', e); }
     btn.disabled = true;
     try {
       var r;
