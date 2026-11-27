@@ -32,12 +32,13 @@
   function authView(mode) {
     var signup = mode === 'signup';
     return '' +
-      '<div class="auth-card">' +
-        '<div class="logo-mark">' + icon('glass') + '</div>' +
+      '<div class="auth-card lg">' +
+        '<div class="lg-orbit" aria-hidden="true"><span class="lg-ring"></span><span class="lg-spin"><span class="lg-dot"></span></span></div>' +
         '<h1>Runde</h1>' +
         '<p class="muted center">Getränke tracken, Rangliste, Karte. Mit deinen Freunden.</p>' +
+        '<div class="lg-feats"><span class="lg-feat">' + icon('trophy') + 'Rangliste</span><span class="lg-feat">' + icon('camera') + 'Fotobeweis</span><span class="lg-feat">' + icon('map') + 'Karte</span></div>' +
         seg('auth-mode', 'mode', [{ value: 'login', label: 'Anmelden' }, { value: 'signup', label: 'Registrieren' }], signup ? 'signup' : 'login') +
-        '<form id="auth-form" data-mode="' + (signup ? 'signup' : 'login') + '" novalidate>' +
+        '<form id="auth-form" class="lg-form" data-mode="' + (signup ? 'signup' : 'login') + '" novalidate>' +
           (signup ? '<label>Name<input name="name" type="text" maxlength="24" autocomplete="nickname" placeholder="So sehen dich die anderen"></label>' : '') +
           '<label>E-Mail<input name="email" type="email" autocomplete="email" inputmode="email" placeholder="du@beispiel.de"></label>' +
           '<label>Passwort<input name="password" type="password" minlength="8" autocomplete="' + (signup ? 'new-password' : 'current-password') + '" placeholder="mindestens 8 Zeichen"></label>' +
@@ -120,6 +121,8 @@
     } else if (rows.every(function (r) { return r.drinks === 0; })) {
       html += '<div class="empty">Noch keine Getränke in diesem Zeitraum.<br><span class="muted">Tippe unten auf das Plus.</span></div>';
     }
+    var mine = Logic.myRank(rows, state.uid);
+    if (mine && mine.points > 0) html += '<p class="rankline">Du bist auf Platz <b>' + mine.rank + '</b> von ' + mine.total + '</p>';
     var podium = rows.length >= 3 && rows[2].points > 0;
     var listRows = podium ? rows.slice(3) : rows;
     if (podium) {
@@ -127,6 +130,7 @@
       html += '<div class="podium">' + order.map(function (r) {
         var me = r.user_id === state.uid;
         return '<div class="pod p' + r.rank + (me ? ' me' : '') + '">' +
+          (r.rank === 1 ? '<span class="pod-crown">' + icon('b-sieger') + '</span>' : '') +
           '<span class="av" style="--c:' + Logic.colorFor(r.user_id) + '">' + esc(Logic.initial(r.display_name)) + '</span>' +
           '<span class="pod-name">' + esc(r.display_name) + (me ? '<em>du</em>' : '') + '</span>' +
           '<span class="pod-pts">' + fmt(r.points) + '</span>' +
@@ -326,14 +330,14 @@
         '<img data-path="' + esc(d.photo_path) + '" alt="" loading="lazy">' +
         '<span class="gain-chip' + (capped ? ' capped' : '') + '">+' + fmt(d.points) + '</span>' +
         (disputed ? '<span class="dispute-flag">Angezweifelt, zählt nicht</span>' : '') +
+        '<span class="shot-by"><span class="av sm" style="--c:' + Logic.colorFor(d.user_id) + '">' + esc(Logic.initial(name)) + '</span>' +
+          '<span class="shot-who"><b>' + esc(name) + (me ? '<em>du</em>' : '') + '</b><small>' + esc(Logic.timeAgo(d.created_at, now)) + (d.lat == null ? ' · ohne Ort' : '') + '</small></span></span>' +
       '</button>' +
       '<div class="post-body">' +
-        '<div class="post-head">' +
-          '<span class="av sm" style="--c:' + Logic.colorFor(d.user_id) + '">' + esc(Logic.initial(name)) + '</span>' +
-          '<div class="post-who"><b>' + esc(name) + (me ? '<em>du</em>' : '') + '</b><small>' + esc(Logic.timeAgo(d.created_at, now)) + (d.lat == null ? ' · ohne Ort' : '') + '</small></div>' +
+        '<div class="post-row">' +
+          '<div class="post-drink"><b>' + esc(Logic.drinkLabel(d)) + '</b><span>' + fmt(d.abv) + ' % · ' + fmt(d.alcohol_g) + ' g Alkohol</span></div>' +
           '<div class="acts">' + actions + '</div>' +
         '</div>' +
-        '<div class="post-drink"><b>' + esc(Logic.drinkLabel(d)) + '</b><span>' + fmt(d.abv) + ' % · ' + fmt(d.alcohol_g) + ' g Alkohol</span></div>' +
         (!disputed && flagCount ? '<div class="badge warn">' + flagCount + 'x gemeldet</div>' : '') +
       '</div>' +
     '</article>';
@@ -346,7 +350,14 @@
     if (!list.length && !pend.length) {
       return '<div class="empty">Noch keine Getränke.<br><span class="muted">Das erste geht aufs Haus: Plus antippen.</span></div>';
     }
-    return '<div class="stack feed">' + pend.map(pendingCard).join('') + list.map(function (d) { return feedItem(d, state); }).join('') +
+    var todayDay = Logic.partyDay(state.now || new Date());
+    var lastDay = null;
+    var items = list.map(function (d) {
+      var head = d.party_day !== lastDay ? '<div class="dh"><span>' + esc(Logic.dayLabel(d.party_day, todayDay)) + '</span></div>' : '';
+      lastDay = d.party_day;
+      return head + feedItem(d, state);
+    }).join('');
+    return '<div class="stack feed">' + pend.map(pendingCard).join('') + items +
       '<p class="tiny muted center">Zweifelst du ein Foto an, tippe auf die Flagge. Mit genug Meldungen zählt das Getränk nicht.</p></div>';
   }
 
@@ -397,6 +408,19 @@
     var lgTxt = g.alcohol_limit_g == null ? '' : fmt(g.alcohol_limit_g);
     var prefs = state.prefs || { camera: 'auto', geo: 'auto' };
 
+    var hero = '<div class="gh"><div class="gh-top">' +
+      '<span class="gh-av" style="--c:' + Logic.colorFor(g.id) + '">' + esc(Logic.initial(g.name)) + '</span>' +
+      '<div class="gh-t"><h2 class="gh-name">' + esc(g.name) + '</h2>' +
+      '<span class="gh-meta">' + members.length + (members.length === 1 ? ' Mitglied' : ' Mitglieder') + (isAdmin ? ' · du bist Admin' : '') + '</span></div></div>' +
+      (isAdmin
+        ? '<details class="fold" id="rename-fold"' + (state.renameOpen ? ' open' : '') + '><summary>Gruppenname ändern</summary>' +
+            '<form id="groupname-form" class="inline-form" novalidate>' +
+              '<input name="name" type="text" maxlength="40" value="' + esc(g.name) + '" aria-label="Neuer Gruppenname">' +
+              '<button class="btn" type="submit">Speichern</button>' +
+            '</form><p class="msg" id="rename-msg" role="alert"></p></details>'
+        : '') +
+    '</div>';
+
     var code = '<div class="ticket">' +
       '<div class="ticket-l">Einladungscode</div>' +
       '<div class="code">' + String(g.invite_code).split('').map(function (c) { return '<span>' + esc(c) + '</span>'; }).join('') + '</div>' +
@@ -442,6 +466,7 @@
 
     return '' +
       '<div class="stack group-view">' +
+        hero +
         code +
         '<section class="gsec"><h3>Mitglieder <span class="count">' + members.length + '</span></h3>' + memberList + '</section>' +
         '<section class="gsec"><h3>Limits für den Abend</h3>' + rulesBody + '</section>' +

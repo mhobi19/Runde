@@ -291,6 +291,29 @@
     };
   }
 
+  /* Beschriftung eines Abends im Verlauf: Heute, Gestern oder Wochentag mit Datum. */
+  function dayLabel(day, today) {
+    if (day === today) return 'Heute';
+    if (day === dayShift(today, -1)) return 'Gestern';
+    var p = String(day).split('-');
+    var d = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2])));
+    var names = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+    return names[d.getUTCDay()] + ', ' + pad(Number(p[2])) + '.' + pad(Number(p[1])) + '.';
+  }
+
+  function validGroupName(s) {
+    var n = String(s == null ? '' : s).trim();
+    return n.length >= 2 && n.length <= 40 ? n : null;
+  }
+
+  /* Eigener Platz aus bereits sortierten Zeilen (rankRows). */
+  function myRank(rows, uid) {
+    for (var i = 0; i < (rows || []).length; i++) {
+      if (rows[i].user_id === uid) return { rank: rows[i].rank, total: rows.length, points: rows[i].points };
+    }
+    return null;
+  }
+
   function isNetworkError(e) {
     if (!e) return false;
     var m = String(e.message || e);
@@ -474,6 +497,9 @@
     pointsRaw: pointsRaw,
     isNetworkError: isNetworkError,
     RECENT_SHOWN: RECENT_SHOWN,
+    dayLabel: dayLabel,
+    validGroupName: validGroupName,
+    myRank: myRank,
     rememberDrink: rememberDrink,
     sanitizeRecent: sanitizeRecent,
     logFromRecent: logFromRecent,

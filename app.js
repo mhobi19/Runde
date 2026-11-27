@@ -116,6 +116,7 @@
     if (/row-level security|violates row/i.test(m)) return 'Keine Berechtigung (Foto-Speicher oder Gruppe). Prüfe die Datenbank-Einrichtung.';
     if (/failed to fetch|networkerror|load failed/i.test(m)) return 'Keine Verbindung. Bitte Internet prüfen.';
     if (/jwt expired/i.test(m)) return 'Sitzung abgelaufen. Bitte neu anmelden.';
+    if (/could not find the function|schema cache/i.test(m)) return 'Die Datenbank ist noch nicht aktualisiert. migration_paket5.sql im Supabase SQL-Editor ausführen.';
     return m;
   }
 
@@ -703,7 +704,7 @@
     mapEl = el;
     mapFitted = false;
     map = window.L.map(el, { zoomControl: false, worldCopyJump: true }).setView([51.1, 10.4], 5);
-    window.L.control.zoom({ position: 'topright' }).addTo(map);
+    window.L.control.zoom({ position: 'bottomright' }).addTo(map);
     window.L.tileLayer(TILES, { maxZoom: 19, attribution: '&copy; OpenStreetMap-Mitwirkende' }).addTo(map);
     markerLayer = window.L.layerGroup().addTo(map);
     updateMarkers();
@@ -1309,6 +1310,20 @@
         toast('Limits gespeichert.', 'good');
         return;
       }
+      case 'groupname-form': {
+        var gname = Logic.validGroupName(new FormData(form).get('name'));
+        if (!gname) { setMsg('rename-msg', 'Gruppenname: 2 bis 40 Zeichen.'); return; }
+        if (gname === state.group.name) { setMsg('rename-msg', 'Das ist schon der Name.'); return; }
+        if (state.offline || !sb) { setMsg('rename-msg', 'Offline: Der Name lässt sich nur mit Netz ändern.'); return; }
+        var rn = await sb.rpc('rename_group', { p_group: state.group.id, p_name: gname });
+        if (rn.error) { logError('rename_group', rn.error); setMsg('rename-msg', humanError(rn.error)); return; }
+        await loadGroups();
+        renderGroupSelect();
+        state.renameOpen = false;
+        render(false);
+        toast('Gruppenname geändert.', 'good');
+        return;
+      }
       case 'rename-form': {
         var name = String(new FormData(form).get('name') || '').trim();
         if (name.length < 2 || name.length > 24) { setMsg('group-msg', 'Name: 2 bis 24 Zeichen.'); return; }
@@ -1327,6 +1342,7 @@
     document.addEventListener('toggle', function (e) {
       if (e.target && e.target.id === 'admin-fold') state.adminOpen = e.target.open;
       if (e.target && e.target.id === 'manage-fold') state.manageOpen = e.target.open;
+      if (e.target && e.target.id === 'rename-fold') state.renameOpen = e.target.open;
     }, true);
     document.addEventListener('click', function (e) {
       var t = e.target.closest ? e.target.closest('[data-action],[data-tab]') : null;
