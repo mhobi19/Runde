@@ -113,3 +113,14 @@ test('Ansicht: Speichern bleibt ohne Foto gesperrt, auch nach Vorauswahl', () =>
   state.blob = {};
   assert.strictEqual(Views.logSaveDisabled(state), false);
 });
+
+test('Sambuca: Voreinstellung bei Spirituose, 38 %, 4 cl = 7,6 Punkte', () => {
+  const p = Logic.presetByKey('sambuca');
+  assert.strictEqual(p.name, 'Sambuca');
+  assert.strictEqual(p.category, 'spirituose');
+  assert.ok(Logic.presetsOf('spirituose').some(x => x.key === 'sambuca'));
+  assert.strictEqual(Logic.pointsRaw(p.abv, 40, 40), 7.6);
+  assert.ok(Views.logSheetView(ls({ category: 'spirituose', presetKey: 'vodka', name: 'Vodka', abv: 40, sizeMl: 40 }), ctx([])).indexOf('Sambuca') !== -1);
+  const keys = Logic.PRESETS.map(x => x.key);
+  assert.strictEqual(new Set(keys).size, keys.length);
+});

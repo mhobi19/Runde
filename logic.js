@@ -40,6 +40,7 @@
     { key: 'vodka', name: 'Vodka', category: 'spirituose', abv: 40 },
     { key: 'jaeger', name: 'Jägermeister', category: 'spirituose', abv: 35 },
     { key: 'tequila', name: 'Tequila', category: 'spirituose', abv: 38 },
+    { key: 'sambuca', name: 'Sambuca', category: 'spirituose', abv: 38 },
     { key: 'whiskey', name: 'Whiskey', category: 'spirituose', abv: 40 },
     { key: 'rum', name: 'Rum', category: 'spirituose', abv: 37.5 },
     { key: 'gin', name: 'Gin', category: 'spirituose', abv: 40 },
