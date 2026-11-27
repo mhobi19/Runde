@@ -246,6 +246,50 @@
     return order.map(function (k) { return map[k]; });
   }
 
+  /* Schnell-Log: die zuletzt getrunkenen Getränke (Name, Art, Prozent, Menge), neueste zuerst, ohne Doppelte. */
+  var RECENT_MAX = 8;
+  var RECENT_SHOWN = 4;
+
+  function recentKey(d) {
+    return [d.category, String(d.name || '').trim().toLowerCase(), Math.round(Number(d.abv) * 10), Number(d.volume_ml)].join('|');
+  }
+
+  function rememberDrink(list, drink) {
+    var entry = { name: String(drink.name || '').trim(), category: drink.category, abv: Number(drink.abv), volume_ml: Number(drink.volume_ml) };
+    var key = recentKey(entry);
+    var out = [entry];
+    (list || []).forEach(function (d) {
+      if (out.length < RECENT_MAX && recentKey(d) !== key) out.push(d);
+    });
+    return out;
+  }
+
+  function sanitizeRecent(list) {
+    if (!Array.isArray(list)) return [];
+    return list.filter(function (d) {
+      return d && !validateDrink({ name: d.name, category: d.category, abv: d.abv, volumeMl: d.volume_ml });
+    }).slice(0, RECENT_MAX).map(function (d) {
+      return { name: String(d.name).trim(), category: d.category, abv: Number(d.abv), volume_ml: Number(d.volume_ml) };
+    });
+  }
+
+  /* Wandelt einen Eintrag in Felder des Log-Fensters um. Passt er genau auf eine Voreinstellung
+     und eine Standardgröße, bleibt es Standard, sonst wird "Eigenes" befüllt. */
+  function logFromRecent(entry) {
+    var cat = entry ? categoryByKey(entry.category) : null;
+    if (!cat) return null;
+    var abvT = Math.round(Number(entry.abv) * 10);
+    var preset = null;
+    presetsOf(cat.key).forEach(function (p) {
+      if (!preset && p.name.toLowerCase() === String(entry.name).toLowerCase() && Math.round(p.abv * 10) === abvT) preset = p;
+    });
+    var standard = !!preset && cat.sizes.indexOf(Number(entry.volume_ml)) !== -1;
+    return {
+      category: cat.key, custom: !standard, presetKey: standard ? preset.key : null,
+      name: standard ? preset.name : String(entry.name), abv: standard ? preset.abv : Number(entry.abv), sizeMl: Number(entry.volume_ml)
+    };
+  }
+
   function isNetworkError(e) {
     if (!e) return false;
     var m = String(e.message || e);
@@ -428,6 +472,10 @@
     presetsOf: presetsOf,
     pointsRaw: pointsRaw,
     isNetworkError: isNetworkError,
+    RECENT_SHOWN: RECENT_SHOWN,
+    rememberDrink: rememberDrink,
+    sanitizeRecent: sanitizeRecent,
+    logFromRecent: logFromRecent,
     dayShift: dayShift,
     computeStats: computeStats,
     computeBadges: computeBadges,

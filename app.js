@@ -741,8 +741,23 @@
   }
 
   /* ---------- Getränk loggen ---------- */
+  var RECENT_KEY = 'runde_recent_';
+
+  function loadRecent() {
+    try {
+      var raw = localStorage.getItem(RECENT_KEY + state.uid);
+      return raw ? Logic.sanitizeRecent(JSON.parse(raw)) : [];
+    } catch (e) { logError('Zuletzt-Liste lesen', e); return []; }
+  }
+
+  function rememberRecent(drink) {
+    try { localStorage.setItem(RECENT_KEY + state.uid, JSON.stringify(Logic.rememberDrink(loadRecent(), drink))); }
+    catch (e) { logError('Zuletzt-Liste speichern', e); }
+  }
+
   function logCtx() {
     return {
+      recent: state.log && state.log.recent ? state.log.recent : [],
       usage: state.today,
       limits: { points: state.group.daily_limit == null ? null : Number(state.group.daily_limit), grams: state.group.alcohol_limit_g == null ? null : Number(state.group.alcohol_limit_g) }
     };
@@ -753,7 +768,7 @@
     var p = Logic.presetByKey('pils');
     state.log = {
       category: 'bier', presetKey: p.key, custom: false, name: p.name, abv: p.abv, sizeMl: 500,
-      blob: null, previewUrl: null, geo: { status: 'pending' }, saving: false
+      blob: null, previewUrl: null, geo: { status: 'pending' }, saving: false, recent: loadRecent()
     };
     renderSheet();
     startGeo();
@@ -1003,6 +1018,7 @@
     try {
       if (navigator.onLine === false || state.offline) throw new Error('offline');
       var res = await sendDrink(item);
+      rememberRecent(item.drink);
       closeSheet();
       if (res.capped && Number(res.points) <= 0) {
         toast((res.reason === 'alkohol' ? 'Alkohol-Obergrenze erreicht' : 'Punkte-Limit erreicht') + ': keine Punkte mehr heute. Wasser, Essen, Pause.', 'bad', 5200);
@@ -1017,6 +1033,7 @@
       if (Logic.isNetworkError(e)) {
         try {
           await window.RundeQueue.add(item);
+          rememberRecent(item.drink);
           closeSheet();
           await refreshPending();
           render(false);
@@ -1148,6 +1165,15 @@
     'log-category': function (t) { pickCategory(t.getAttribute('data-key')); },
     'log-preset': function (t) { pickPreset(t.getAttribute('data-key')); },
     'log-size': function (t) { state.log.sizeMl = parseInt(t.getAttribute('data-ml'), 10); renderSheet(); },
+    'log-recent': function (t) {
+      var ls = state.log;
+      if (!ls) return;
+      var f = Logic.logFromRecent((ls.recent || [])[parseInt(t.getAttribute('data-i'), 10)]);
+      if (!f) return;
+      ls.category = f.category; ls.custom = f.custom; ls.presetKey = f.presetKey;
+      ls.name = f.name; ls.abv = f.abv; ls.sizeMl = f.sizeMl;
+      renderSheet();
+    },
     'log-custom': function () { state.log.custom = true; state.log.presetKey = null; state.log.name = ''; renderSheet(); },
     'open-camera': openCamera,
     'cam-capture': capture,

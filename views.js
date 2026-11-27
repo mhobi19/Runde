@@ -536,6 +536,13 @@
       return '<button type="button" class="cat' + (!ls.custom && c.key === ls.category ? ' on' : '') + '" data-action="log-category" data-key="' + c.key + '"><span class="cat-disc">' + icon(c.key) + '</span><span class="cat-name">' + esc(c.label) + '</span></button>';
     }).join('') + '<button type="button" class="cat' + (ls.custom ? ' on' : '') + '" data-action="log-custom"><span class="cat-disc">' + icon('edit') + '</span><span class="cat-name">Eigenes</span></button>';
 
+    var recent = (ctx.recent || []).slice(0, Logic.RECENT_SHOWN);
+    var quick = recent.length
+      ? '<div class="label">Zuletzt getrunken</div><div class="chips">' + recent.map(function (d, i) {
+          return '<button type="button" class="chip" data-action="log-recent" data-i="' + i + '">' + esc(Logic.drinkLabel(d)) + '<small>' + fmt(d.abv) + ' %</small></button>';
+        }).join('') + '</div>'
+      : '';
+
     var body;
     if (ls.custom) {
       body = '<div class="custom">' +
@@ -562,6 +569,7 @@
       '<div class="sheet-card" role="dialog" aria-modal="true" aria-label="Getränk loggen">' +
         '<header class="sheet-head"><h2>Getränk loggen</h2><button class="icon-btn" data-action="close-sheet" aria-label="Schließen">' + icon('x') + '</button></header>' +
         '<div class="sheet-body">' +
+          quick +
           '<div class="cats">' + catButtons + '</div>' +
           body +
           '<div id="log-preview">' + logPreview(ls, ctx) + '</div>' +
